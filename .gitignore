@@ -3,3 +3,6 @@ __pycache__/
 venv/
 backend/venv/
 backend/.venv
+.env
+/.tmp/
+output/
