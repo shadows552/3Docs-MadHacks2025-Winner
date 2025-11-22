@@ -1,4 +1,4 @@
-#!/Users/nickjyeung/Desktop/MadHacks2025/venv/bin/python
+#!/Users/nickjyeung/Desktop/MadHacks2025/backend/venv/bin/python
 # -*- coding: utf-8 -*-
 import re
 import sys
