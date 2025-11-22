@@ -1,7 +1,8 @@
 import sqlite3
 import hashlib
+from pathlib import Path
 
-con = sqlite3.connect('/.tmp/instructions.db')
+con = sqlite3.connect('./volume/instructions.db')
 
 def calculate_pdf_hash(file_path: str) -> bytes:
     """Reads a file in chunks and returns its SHA-256 hash as raw bytes."""
@@ -35,18 +36,17 @@ def init_db():
 def store_gemini_results(
     pdf_path: str,
     pdf_filename: str,
-    instructions_filename: str,
     image_filenames: list,
     gemini_results: dict
 ) -> bytes:
     """
     Store Gemini processing results in database.
     Only stores instructional images with sequential step numbers (0 to N, no gaps).
+    Creates a separate instruction text file for each step.
 
     Args:
         pdf_path: Full path to PDF file (for hash calculation)
         pdf_filename: PDF filename (without volume/)
-        instructions_filename: Instructions text filename (without volume/)
         image_filenames: List of all image filenames
         gemini_results: Results from Gemini processing
 
@@ -71,21 +71,28 @@ def store_gemini_results(
         print(f"Skipping {existing_count} existing steps.")
         return pdf_hash_bytes
 
-    # Create instruction file with titles and descriptions (newline separated)
     # Filter only instructional images and store with sequential step numbers
     step_number = 0
-    titles = []
-    descriptions = []
+    volume_dir = Path("volume")
 
     for match in gemini_results.get("matches", []):
         if not match.get("is_instruction"):
             continue  # Skip non-instructional images
 
-        titles.append(match["instruction_title"])
-        descriptions.append(match["instruction_description"])
+        title = match["instruction_title"]
+        description = match["instruction_description"]
 
         image_index = match["image_index"]
         image_filename = image_filenames[image_index]
+
+        # Create instruction file for this step (title\n\ndescription)
+        # Extract base name from image filename to create instruction filename
+        image_stem = Path(image_filename).stem
+        instruction_filename = f"{image_stem}_instruction.txt"
+        instruction_path = volume_dir / instruction_filename
+
+        with open(instruction_path, "w", encoding="utf-8") as f:
+            f.write(f"{title}\n\n{description}")
 
         # Insert row for this step
         con.execute('''
@@ -105,18 +112,12 @@ def store_gemini_results(
             image_filename,
             None,  # glb added later
             None,  # mp3 added later
-            instructions_filename
+            instruction_filename
         ))
 
         step_number += 1
 
     con.commit()
-
-    # Write titles and descriptions to instruction file
-    instruction_content = "\n".join(titles) + "\n\n" + "\n".join(descriptions)
-    instruction_path = Path("volume") / instructions_filename
-    with open(instruction_path, "w", encoding="utf-8") as f:
-        f.write(instruction_content)
 
     print(f"\nStored in database:")
     print(f"  PDF Hash: {pdf_hash_bytes.hex()[:16]}...")
@@ -126,5 +127,3 @@ def store_gemini_results(
     return pdf_hash_bytes
 
 init_db()
-
-con.close()
