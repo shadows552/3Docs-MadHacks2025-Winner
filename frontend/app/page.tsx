@@ -59,9 +59,6 @@ export default function Dashboard() {
           <span className="font-bold text-lg tracking-tight text-zinc-800">ManualAI</span>
         </div>
         <div className="flex items-center gap-4">
-          <div className="text-base text-zinc-500">
-            Made with ❤️ at MadHacks 2025
-          </div>
         </div>
       </nav>
 
