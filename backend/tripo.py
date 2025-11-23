@@ -26,9 +26,16 @@ async def image_to_model(image_path: str, pdf_hash_hex: str, step: int, output_d
         GLB filename if successful, None otherwise.
     """
     async with TripoClient(api_key=API_KEY) as client:
-        # Create task
+        # Create task with best quality settings
+        # v3.0: Sculpture-level geometry precision with sharp edges
+        # geometry_quality="detailed" enables Ultra Mode with up to 2M polygons
         task_id = await client.image_to_model(
             image=image_path,
+            model_version="v3.0-20250812",
+            texture=True,
+            pbr=True,
+            texture_quality="detailed",
+            texture_alignment="original_image",
         )
 
         # Wait for task completion and show progress

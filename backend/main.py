@@ -84,7 +84,7 @@ async def main():
     init_db()
 
     # Hardcoded PDF for now - will be replaced with Flask endpoint
-    pdf_filename = "test.pdf"
+    pdf_filename = "trimmed.pdf"
 
     # Extract filenames and instructions
     image_filenames, instructions_filename = extract_pdf_content(pdf_filename)
