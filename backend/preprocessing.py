@@ -12,16 +12,17 @@ from PIL import Image
 import io
 
 
-def extract_pdf_content(pdf_path: str, output_dir: str = "volume") -> Tuple[List[str], str]:
+def extract_pdf_content(pdf_path: str, output_dir: str = "volume") -> Tuple[List[str], str, List[dict]]:
     """
-    Extract images and text from a PDF file.
+    Extract images and text from a PDF file with position data.
 
     Args:
         pdf_path: Path to the PDF file
         output_dir: Directory to save extracted content (default: "volume")
 
     Returns:
-        Tuple of (list of image paths in order, path to instructions text file)
+        Tuple of (list of image paths in order, path to instructions text file, list of position data)
+        Position data includes: page_number, y_coordinate, bbox
     """
     # Construct the PDF path within the volume directory
     pdf_path = Path("./volume") / pdf_path
@@ -45,6 +46,7 @@ def extract_pdf_content(pdf_path: str, output_dir: str = "volume") -> Tuple[List
     # Extract text from all pages
     full_text = []
     image_paths = []
+    image_positions = []
     image_counter = 0
 
     print(f"Processing PDF: {pdf_path.name}")
@@ -76,6 +78,38 @@ def extract_pdf_content(pdf_path: str, output_dir: str = "volume") -> Tuple[List
                 print(f"  Skipping small image from page {page_num + 1} ({image_size_kb:.2f} KB)")
                 continue
 
+            # Get bounding box of the image on the page
+            try:
+                image_rects = page.get_image_rects(xref)
+                if image_rects:
+                    # Take the first occurrence if image appears multiple times
+                    rect = image_rects[0]
+
+                    # Convert to top-based Y coordinate
+                    # PyMuPDF uses bottom-left origin, web uses top-left
+                    page_height = page.rect.height
+                    y_from_top = page_height - rect.y1
+
+                    # Store position data
+                    position_data = {
+                        'page_number': page_num,  # 0-indexed
+                        'y_coordinate': y_from_top,
+                        'bbox': {
+                            'x0': rect.x0,
+                            'y0': rect.y0,
+                            'x1': rect.x1,
+                            'y1': rect.y1,
+                            'width': rect.width,
+                            'height': rect.height
+                        }
+                    }
+                else:
+                    # No position data available
+                    position_data = None
+            except Exception as e:
+                print(f"  Warning: Could not get position for image on page {page_num + 1}: {e}")
+                position_data = None
+
             # Create unique filename for this image
             image_filename = f"{file_prefix}_img_{image_counter:03d}.{image_ext}"
             image_path = output_path / image_filename
@@ -94,8 +128,13 @@ def extract_pdf_content(pdf_path: str, output_dir: str = "volume") -> Tuple[List
 
                 # Append just the filename, not the full path with volume/
                 image_paths.append(image_filename)
+                image_positions.append(position_data)
                 image_counter += 1
-                print(f"  Extracted image {image_counter} from page {page_num + 1}: {image_path.name} ({image_size_kb:.1f} KB)")
+
+                if position_data:
+                    print(f"  Extracted image {image_counter} from page {page_num + 1}: {image_path.name} ({image_size_kb:.1f} KB) at Y={position_data['y_coordinate']:.1f}")
+                else:
+                    print(f"  Extracted image {image_counter} from page {page_num + 1}: {image_path.name} ({image_size_kb:.1f} KB)")
 
             except Exception as e:
                 print(f"  Warning: Could not save image from page {page_num + 1}: {e}")
@@ -111,8 +150,9 @@ def extract_pdf_content(pdf_path: str, output_dir: str = "volume") -> Tuple[List
 
     print(f"\nExtraction complete:")
     print(f"  Images extracted: {len(image_paths)}")
+    print(f"  Images with position data: {sum(1 for p in image_positions if p is not None)}")
     print(f"  Text saved to: {instructions_path.name}")
     print(f"  Total characters: {len(''.join(full_text))}")
 
     # Return just filenames, not full paths
-    return image_paths, instructions_filename
+    return image_paths, instructions_filename, image_positions

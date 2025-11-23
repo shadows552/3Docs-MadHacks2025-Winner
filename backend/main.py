@@ -80,14 +80,12 @@ async def generate_3d_models(pdf_hash: bytes, hash_hex: str):
 
 async def main():
     """Main pipeline execution."""
-    # Initialize database
-    init_db()
 
     # Hardcoded PDF for now - will be replaced with Flask endpoint
     pdf_filename = "trimmed.pdf"
 
-    # Extract filenames and instructions
-    image_filenames, instructions_filename = extract_pdf_content(pdf_filename)
+    # Extract filenames and instructions with position data
+    image_filenames, instructions_filename, image_positions = extract_pdf_content(pdf_filename)
 
     # Process with Gemini
     results = process_manual_images(image_filenames, instructions_filename)
@@ -100,12 +98,13 @@ async def main():
     pdf_hash = calculate_pdf_hash(str(pdf_path))
     hash_hex = pdf_hash.hex()[:16]
 
-    # Store results in database
+    # Store results in database with position data
     store_gemini_results(
         pdf_hash_bytes=pdf_hash,
         pdf_filename=pdf_filename,
         image_filenames=image_filenames,
-        gemini_results=results
+        gemini_results=results,
+        image_positions=image_positions
     )
 
     # Generate TTS and 3D models in parallel

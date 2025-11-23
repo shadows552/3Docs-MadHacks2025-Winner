@@ -7,6 +7,7 @@ import asyncio
 from pathlib import Path
 from typing import Optional
 from fastapi import FastAPI, HTTPException, UploadFile, File, Form
+from fastapi.responses import FileResponse
 from fastapi.middleware.cors import CORSMiddleware
 from pydantic import BaseModel
 from contextlib import asynccontextmanager
@@ -20,7 +21,11 @@ from database import (
     get_instructions_by_hash,
     get_instructions_with_images,
     update_mp3_filename,
-    update_glb_filename
+    update_glb_filename,
+    get_all_pdfs,
+    get_pdf_filename_by_hash,
+    get_file_info_by_hash_step,
+    get_step_position
 )
 from tts import tts
 from tripo import image_to_model
@@ -58,7 +63,6 @@ app.add_middleware(
 # Request/Response models
 class ProcessRequest(BaseModel):
     pdf_filename: str
-    voice_id: Optional[str] = "zh_CN-female-1"
     generate_tts: Optional[bool] = True
     generate_3d: Optional[bool] = True
 
@@ -72,12 +76,22 @@ class ProcessResponse(BaseModel):
     models_generated: Optional[int] = None
 
 
-async def generate_tts_files(pdf_hash: bytes, hash_hex: str, voice_id: str = "zh_CN-female-1"):
+class PDFInfo(BaseModel):
+    hash: str
+    pdf_filename: str
+    step_count: int
+
+
+class PDFListResponse(BaseModel):
+    success: bool
+    pdfs: list[PDFInfo]
+    total_count: int
+
+
+async def generate_tts_files(pdf_hash: bytes, hash_hex: str):
     """Generate TTS audio files for all instructions."""
     volume_dir = Path("volume")
     rows = get_instructions_by_hash(pdf_hash)
-
-    print(f"\nGenerating TTS for {len(rows)} instructions with voice: {voice_id}...")
 
     # Create TTS tasks for parallel processing
     tts_tasks = []
@@ -92,7 +106,7 @@ async def generate_tts_files(pdf_hash: bytes, hash_hex: str, voice_id: str = "zh
         parts = content.split("\n\n", 1)
         title, description = parts
 
-        # Create async task (pass voice_id if tts function supports it)
+        # Create async task
         task = tts(description, hash_hex, step)
         tts_tasks.append((step, task))
 
@@ -150,7 +164,6 @@ async def generate_3d_models(pdf_hash: bytes, hash_hex: str):
 
 async def process_pdf_pipeline(
     pdf_filename: str,
-    voice_id: str = "zh_CN-female-1",
     generate_tts: bool = True,
     generate_3d: bool = True
 ) -> dict:
@@ -159,7 +172,6 @@ async def process_pdf_pipeline(
 
     Args:
         pdf_filename: Name of the PDF file in the volume directory
-        voice_id: Voice ID for TTS generation
         generate_tts: Whether to generate TTS audio files
         generate_3d: Whether to generate 3D models
 
@@ -177,10 +189,11 @@ async def process_pdf_pipeline(
     print(f"Processing PDF: {pdf_filename}")
     print(f"{'='*60}")
 
-    # Extract filenames and instructions
+    # Extract filenames and instructions with position data
     print("\n[1/4] Extracting PDF content...")
-    image_filenames, instructions_filename = extract_pdf_content(pdf_filename)
+    image_filenames, instructions_filename, image_positions = extract_pdf_content(pdf_filename)
     print(f"  Extracted {len(image_filenames)} images")
+    print(f"  Images with position data: {sum(1 for p in image_positions if p is not None)}")
 
     # Process with Gemini
     print("\n[2/4] Processing with Gemini AI...")
@@ -199,7 +212,8 @@ async def process_pdf_pipeline(
         pdf_hash_bytes=pdf_hash,
         pdf_filename=pdf_filename,
         image_filenames=image_filenames,
-        gemini_results=results
+        gemini_results=results,
+        image_positions=image_positions
     )
     print(f"  Stored {len(instructional)} steps")
 
@@ -210,7 +224,7 @@ async def process_pdf_pipeline(
 
     tasks = []
     if generate_tts:
-        tasks.append(generate_tts_files(pdf_hash, hash_hex, voice_id))
+        tasks.append(generate_tts_files(pdf_hash, hash_hex))
     if generate_3d:
         tasks.append(generate_3d_models(pdf_hash, hash_hex))
 
@@ -257,44 +271,33 @@ async def health():
     }
 
 
-@app.post("/process", response_model=ProcessResponse)
-async def process_pdf(request: ProcessRequest):
+@app.get("/pdfs", response_model=PDFListResponse)
+async def list_pdfs():
     """
-    Process a PDF file through the AI pipeline.
+    Get all PDFs currently in the database.
 
-    Accepts a PDF filename and optional parameters, then:
-    1. Extracts images and text from the PDF
-    2. Processes content with Gemini AI
-    3. Generates TTS audio files (optional)
-    4. Generates 3D models (optional)
-    5. Stores all results in the database
+    Returns a list of PDFs with their hash, filename, and step count.
     """
     try:
-        result = await process_pdf_pipeline(
-            pdf_filename=request.pdf_filename,
-            voice_id=request.voice_id,
-            generate_tts=request.generate_tts,
-            generate_3d=request.generate_3d
-        )
+        pdfs = get_all_pdfs()
 
-        return ProcessResponse(
+        pdf_list = [
+            PDFInfo(hash=hash_hex, pdf_filename=filename, step_count=count)
+            for hash_hex, filename, count in pdfs
+        ]
+
+        return PDFListResponse(
             success=True,
-            message=f"Successfully processed {request.pdf_filename}",
-            pdf_hash=result["pdf_hash"],
-            steps_processed=result["steps_processed"],
-            tts_files_generated=result["tts_files_generated"],
-            models_generated=result["models_generated"]
+            pdfs=pdf_list,
+            total_count=len(pdf_list)
         )
-    except FileNotFoundError as e:
-        raise HTTPException(status_code=404, detail=str(e))
     except Exception as e:
-        raise HTTPException(status_code=500, detail=f"Processing failed: {str(e)}")
+        raise HTTPException(status_code=500, detail=f"Failed to retrieve PDFs: {str(e)}")
 
 
 @app.post("/upload-and-process")
 async def upload_and_process(
     file: UploadFile = File(...),
-    voice_id: str = Form("zh_CN-female-1"),
     generate_tts: bool = Form(True),
     generate_3d: bool = Form(True)
 ):
@@ -327,7 +330,6 @@ async def upload_and_process(
         # Process the uploaded file
         result = await process_pdf_pipeline(
             pdf_filename=file.filename,
-            voice_id=voice_id,
             generate_tts=generate_tts,
             generate_3d=generate_3d
         )
@@ -344,6 +346,203 @@ async def upload_and_process(
         raise
     except Exception as e:
         raise HTTPException(status_code=500, detail=f"Upload and processing failed: {str(e)}")
+
+
+@app.get("/pdf/{hash}")
+async def get_pdf(hash: str):
+    """
+    Get the original PDF file by hash.
+
+    Args:
+        hash: First 16 characters of the PDF hash
+    """
+    try:
+        pdf_filename = get_pdf_filename_by_hash(hash)
+        if not pdf_filename:
+            raise HTTPException(status_code=404, detail=f"PDF with hash {hash} not found")
+
+        volume_dir = Path("volume")
+        pdf_path = volume_dir / pdf_filename
+
+        if not pdf_path.exists():
+            raise HTTPException(status_code=404, detail=f"PDF file {pdf_filename} not found on disk")
+
+        return FileResponse(
+            path=str(pdf_path),
+            media_type="application/pdf",
+            filename=pdf_filename
+        )
+    except HTTPException:
+        raise
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=f"Failed to retrieve PDF: {str(e)}")
+
+
+@app.get("/image/{hash}/{step}")
+async def get_image(hash: str, step: int):
+    """
+    Get the image file for a specific step.
+
+    Args:
+        hash: First 16 characters of the PDF hash
+        step: Step number
+    """
+    try:
+        file_info = get_file_info_by_hash_step(hash, step)
+        if not file_info or not file_info['image_filename']:
+            raise HTTPException(status_code=404, detail=f"Image not found for hash {hash}, step {step}")
+
+        volume_dir = Path("volume")
+        image_path = volume_dir / file_info['image_filename']
+
+        if not image_path.exists():
+            raise HTTPException(status_code=404, detail=f"Image file {file_info['image_filename']} not found on disk")
+
+        # Determine media type based on extension
+        ext = image_path.suffix.lower()
+        media_type_map = {
+            '.png': 'image/png',
+            '.jpg': 'image/jpeg',
+            '.jpeg': 'image/jpeg',
+            '.gif': 'image/gif',
+            '.webp': 'image/webp'
+        }
+        media_type = media_type_map.get(ext, 'application/octet-stream')
+
+        return FileResponse(
+            path=str(image_path),
+            media_type=media_type,
+            filename=file_info['image_filename']
+        )
+    except HTTPException:
+        raise
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=f"Failed to retrieve image: {str(e)}")
+
+
+@app.get("/glb/{hash}/{step}")
+async def get_glb(hash: str, step: int):
+    """
+    Get the 3D model (GLB) file for a specific step.
+
+    Args:
+        hash: First 16 characters of the PDF hash
+        step: Step number
+    """
+    try:
+        file_info = get_file_info_by_hash_step(hash, step)
+        if not file_info or not file_info['glb_filename']:
+            raise HTTPException(status_code=404, detail=f"GLB not found for hash {hash}, step {step}")
+
+        volume_dir = Path("volume")
+        glb_path = volume_dir / file_info['glb_filename']
+
+        if not glb_path.exists():
+            raise HTTPException(status_code=404, detail=f"GLB file {file_info['glb_filename']} not found on disk")
+
+        return FileResponse(
+            path=str(glb_path),
+            media_type="model/gltf-binary",
+            filename=file_info['glb_filename']
+        )
+    except HTTPException:
+        raise
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=f"Failed to retrieve GLB: {str(e)}")
+
+
+@app.get("/mp3/{hash}/{step}")
+async def get_mp3(hash: str, step: int):
+    """
+    Get the audio (MP3) file for a specific step.
+
+    Args:
+        hash: First 16 characters of the PDF hash
+        step: Step number
+    """
+    try:
+        file_info = get_file_info_by_hash_step(hash, step)
+        if not file_info or not file_info['mp3_filename']:
+            raise HTTPException(status_code=404, detail=f"MP3 not found for hash {hash}, step {step}")
+
+        volume_dir = Path("volume")
+        mp3_path = volume_dir / file_info['mp3_filename']
+
+        if not mp3_path.exists():
+            raise HTTPException(status_code=404, detail=f"MP3 file {file_info['mp3_filename']} not found on disk")
+
+        return FileResponse(
+            path=str(mp3_path),
+            media_type="audio/mpeg",
+            filename=file_info['mp3_filename']
+        )
+    except HTTPException:
+        raise
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=f"Failed to retrieve MP3: {str(e)}")
+
+
+@app.get("/instruction/{hash}/{step}")
+async def get_instruction(hash: str, step: int):
+    """
+    Get the instruction text file for a specific step.
+
+    Args:
+        hash: First 16 characters of the PDF hash
+        step: Step number
+    """
+    try:
+        file_info = get_file_info_by_hash_step(hash, step)
+        if not file_info or not file_info['instruction_filename']:
+            raise HTTPException(status_code=404, detail=f"Instruction not found for hash {hash}, step {step}")
+
+        volume_dir = Path("volume")
+        instruction_path = volume_dir / file_info['instruction_filename']
+
+        if not instruction_path.exists():
+            raise HTTPException(status_code=404, detail=f"Instruction file {file_info['instruction_filename']} not found on disk")
+
+        return FileResponse(
+            path=str(instruction_path),
+            media_type="text/plain",
+            filename=file_info['instruction_filename']
+        )
+    except HTTPException:
+        raise
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=f"Failed to retrieve instruction: {str(e)}")
+
+
+@app.get("/step-position/{hash}/{step}")
+async def get_step_position_endpoint(hash: str, step: int):
+    """
+    Get the page number and Y-coordinate for a specific step.
+
+    Args:
+        hash: First 16 characters of the PDF hash
+        step: Step number
+
+    Returns:
+        JSON with page_number, y_coordinate, and bbox information
+    """
+    try:
+        position = get_step_position(hash, step)
+        if not position:
+            raise HTTPException(
+                status_code=404,
+                detail=f"Position data not found for hash {hash}, step {step}"
+            )
+
+        return {
+            "success": True,
+            "page_number": position['page_number'],
+            "y_coordinate": position['y_coordinate'],
+            "bbox": position['bbox']
+        }
+    except HTTPException:
+        raise
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=f"Failed to retrieve position data: {str(e)}")
 
 
 if __name__ == "__main__":

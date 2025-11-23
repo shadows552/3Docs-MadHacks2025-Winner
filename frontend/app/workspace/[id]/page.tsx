@@ -1,108 +1,132 @@
 "use client";
-// 1. Add 'use' to imports
 import React, { useState, useEffect, use } from 'react';
 import Link from 'next/link';
-import { 
-  ArrowLeft, 
-  ArrowRight, 
-  ChevronRight, 
-  Box, 
+import {
+  ArrowLeft,
+  ArrowRight,
+  ChevronRight,
+  Box,
   Maximize2,
   PlayCircle,
   FileText,
   Volume2,
   Loader2
 } from 'lucide-react';
+import { Document, Page, pdfjs } from 'react-pdf';
 import AssemblyScene from '@/components/AssemblyScene';
+import {
+  fetchPDFInfo,
+  fetchPDFSteps,
+  fetchInstructionData,
+  getPDFUrl,
+  getImageUrl,
+  getGLBUrl,
+  getMP3Url
+} from '@/lib/api';
+
+// Configure PDF.js worker
+pdfjs.GlobalWorkerOptions.workerSrc = `//unpkg.com/pdfjs-dist@${pdfjs.version}/build/pdf.worker.min.mjs`;
 
 // --- TYPES ---
 interface ManualStep {
   stepNumber: number;
   title: string;
   description: string;
-  voiceGuidance: string;
-  pdfPage: number;
+  imageUrl: string;
   modelUrl: string;
+  audioUrl: string;
 }
 
 interface ManualData {
   productName: string;
-  pdfTitle: string;
+  pdfHash: string;
+  pdfUrl: string;
   steps: ManualStep[];
 }
 
-// 2. Update Interface: params is now a Promise
 interface WorkspaceProps {
   params: Promise<{
     id: string;
   }>;
 }
 
-const mockFetchManualData = async (id: string): Promise<ManualData> => {
-  await new Promise(resolve => setTimeout(resolve, 1500));
+/**
+ * Fetch manual data from backend using the PDF hash
+ */
+const fetchManualData = async (hash: string): Promise<ManualData> => {
+  // Fetch PDF info
+  const pdfInfo = await fetchPDFInfo(hash);
+  if (!pdfInfo) {
+    throw new Error(`PDF with hash ${hash} not found`);
+  }
+
+  // Fetch all step numbers
+  const stepNumbers = await fetchPDFSteps(hash);
+
+  // Fetch instruction data for all steps in parallel
+  const stepDataPromises = stepNumbers.map(async (stepNum) => {
+    const instructionData = await fetchInstructionData(hash, stepNum);
+    return {
+      stepNumber: stepNum,
+      title: instructionData.title,
+      description: instructionData.description,
+      imageUrl: getImageUrl(hash, stepNum),
+      modelUrl: getGLBUrl(hash, stepNum),
+      audioUrl: getMP3Url(hash, stepNum)
+    };
+  });
+
+  const steps = await Promise.all(stepDataPromises);
+
   return {
-    productName: "SANDSBERG Table",
-    pdfTitle: "SANDSBERG_assembly_instructions.pdf",
-    steps: [
-      { 
-        stepNumber: 1, 
-        title: "Prepare Workspace", 
-        description: "Place the table frame upside down on a soft surface.", 
-        voiceGuidance: "Start by placing the table top upside down on a rug or carpet to prevent scratches.", 
-        pdfPage: 1,
-        modelUrl: "https://raw.githubusercontent.com/KhronosGroup/glTF-Sample-Models/master/2.0/Box/glTF-Binary/Box.glb"
-      },
-      { 
-        stepNumber: 2, 
-        title: "Insert Brackets", 
-        description: "Push the plastic corner brackets into the metal frame.", 
-        voiceGuidance: "Take the four plastic corner brackets and push them into the frame slots until they click.", 
-        pdfPage: 2,
-        modelUrl: "https://raw.githubusercontent.com/KhronosGroup/glTF-Sample-Models/main/2.0/ToyCar/glTF-Binary/ToyCar.glb"
-      },
-      { 
-        stepNumber: 3, 
-        title: "Secure Frame", 
-        description: "Align frame and tighten screws.", 
-        voiceGuidance: "Use the provided Allen key to firmly secure the frame using the ten medium-sized screws.", 
-        pdfPage: 3,
-        modelUrl: "https://raw.githubusercontent.com/KhronosGroup/glTF-Sample-Models/master/2.0/Lantern/glTF-Binary/Lantern.glb"
-      },
-      { 
-        stepNumber: 4, 
-        title: "Attach Legs", 
-        description: "Screw in the legs.", 
-        voiceGuidance: "Finally, screw the legs into the brackets. Hand tighten them first, then give them a final turn.", 
-        pdfPage: 4,
-        modelUrl: "https://raw.githubusercontent.com/KhronosGroup/glTF-Sample-Models/master/2.0/Avocado/glTF-Binary/Avocado.glb"
-      },
-    ]
+    productName: pdfInfo.pdf_filename.replace('.pdf', ''),
+    pdfHash: hash,
+    pdfUrl: getPDFUrl(hash),
+    steps
   };
 };
 
 export default function Workspace({ params }: WorkspaceProps) {
-  // 3. Unwrap the params Promise using 'use'
-  // This extracts 'id' safely for use in the component
+  // Unwrap the params Promise using 'use'
   const { id } = use(params);
 
   const [manualData, setManualData] = useState<ManualData | null>(null);
   const [loading, setLoading] = useState<boolean>(true);
   const [error, setError] = useState<string | null>(null);
-  
+
   const [currentStep, setCurrentStep] = useState<number>(1);
   const [isPlaying, setIsPlaying] = useState<boolean>(false);
+
+  // PDF viewer state
+  const [numPages, setNumPages] = useState<number | null>(null);
+  const [pdfWidth, setPdfWidth] = useState<number>(600);
+  const pdfContainerRef = React.useRef<HTMLDivElement>(null);
+
+  // Update PDF width based on container size
+  useEffect(() => {
+    const updatePdfWidth = () => {
+      if (pdfContainerRef.current) {
+        const containerWidth = pdfContainerRef.current.offsetWidth;
+        setPdfWidth(Math.min(containerWidth - 32, 800)); // Max 800px, 32px for padding
+      }
+    };
+
+    updatePdfWidth();
+    window.addEventListener('resize', updatePdfWidth);
+    return () => window.removeEventListener('resize', updatePdfWidth);
+  }, []);
 
   // --- FETCH DATA ---
   useEffect(() => {
     const loadData = async () => {
       try {
         setLoading(true);
-        // Use the unwrapped 'id' variable here
-        const data = await mockFetchManualData(id);
+        // Fetch real data from backend using the hash (id)
+        const data = await fetchManualData(id);
         setManualData(data);
       } catch (err) {
         console.error("Failed to load manual", err);
-        setError("Failed to load instruction manual.");
+        setError("Failed to load instruction manual. Make sure the backend server is running.");
       } finally {
         setLoading(false);
       }
@@ -110,15 +134,42 @@ export default function Workspace({ params }: WorkspaceProps) {
     loadData();
   }, [id]); // Depend on the unwrapped id
 
+  // Steps are 0-indexed in backend, but we display as 1-indexed
   const activeStepData = manualData ? manualData.steps[currentStep - 1] : null;
   const totalSteps = manualData ? manualData.steps.length : 0;
 
-  // --- VOICE SIMULATION ---
+  // Audio playback reference
+  const audioRef = React.useRef<HTMLAudioElement | null>(null);
+
+  // --- AUDIO PLAYBACK ---
   useEffect(() => {
     if (!activeStepData) return;
-    setIsPlaying(true);
-    const timer = setTimeout(() => setIsPlaying(false), 4000);
-    return () => clearTimeout(timer);
+
+    // Create and play audio
+    if (audioRef.current) {
+      audioRef.current.pause();
+    }
+
+    const audio = new Audio(activeStepData.audioUrl);
+    audioRef.current = audio;
+
+    audio.onplay = () => setIsPlaying(true);
+    audio.onended = () => setIsPlaying(false);
+    audio.onerror = () => {
+      console.error('Failed to load audio');
+      setIsPlaying(false);
+    };
+
+    // Auto-play audio when step changes
+    audio.play().catch(err => {
+      console.error('Audio playback failed:', err);
+      setIsPlaying(false);
+    });
+
+    return () => {
+      audio.pause();
+      audioRef.current = null;
+    };
   }, [currentStep, activeStepData]);
 
   if (loading) {
@@ -154,39 +205,62 @@ export default function Workspace({ params }: WorkspaceProps) {
           </Link>
           <div className="h-4 w-[1px] bg-zinc-700 mx-1" />
           <nav className="flex items-center gap-2 text-sm">
-            <span className="text-zinc-400">Dashboard</span>
+            <Link href="/" className="text-zinc-400 hover:text-zinc-200 transition-colors">
+              Dashboard
+            </Link>
             <ChevronRight className="w-4 h-4 text-zinc-600" />
             <span className="font-semibold text-zinc-100">{manualData.productName}</span>
           </nav>
+        </div>
+        <div className="text-xs text-zinc-500 font-mono">
+          {manualData.pdfHash}
         </div>
       </header>
 
       {/* MAIN SPLIT VIEW */}
       <div className="flex-1 flex flex-col md:flex-row overflow-hidden">
         
-        {/* LEFT PANEL: REAL PDF VIEWER */}
+        {/* LEFT PANEL: PDF VIEWER */}
         <div className="w-full md:w-1/2 bg-zinc-800 border-b md:border-b-0 md:border-r border-zinc-700 relative flex flex-col h-1/2 md:h-full">
            <div className="h-12 border-b border-zinc-700 flex items-center justify-between px-4 bg-zinc-800/50 backdrop-blur shrink-0">
               <span className="text-xs font-medium text-zinc-400 flex items-center gap-2">
                 <FileText className="w-4 h-4" />
-                {manualData.pdfTitle}
+                {manualData.productName}
               </span>
               <span className="text-xs bg-black/30 px-2 py-1 rounded text-zinc-300">
-                Page {activeStepData.pdfPage}
+                Step {currentStep} of {totalSteps}
               </span>
            </div>
 
-           {/* PDF IFRAME CONTAINER */}
-           <div className="flex-1 bg-zinc-900 relative">
-              <iframe 
-                /* 4. FIX: Add key prop to force re-render when page changes.
-                   This solves your previous issue where the PDF wouldn't update.
-                */
-                key={activeStepData.pdfPage} 
-                src={`/sample.pdf#page=${activeStepData.pdfPage}`}
-                className="w-full h-full border-0"
-                title="Instruction Manual PDF"
-              />
+           {/* PDF VIEWER CONTAINER */}
+           <div ref={pdfContainerRef} className="flex-1 bg-zinc-900 relative overflow-y-auto">
+              <div className="flex flex-col items-center py-4">
+                <Document
+                  file={manualData.pdfUrl}
+                  onLoadSuccess={({ numPages }) => setNumPages(numPages)}
+                  loading={
+                    <div className="flex items-center justify-center py-12">
+                      <Loader2 className="w-8 h-8 text-indigo-500 animate-spin" />
+                    </div>
+                  }
+                  error={
+                    <div className="flex items-center justify-center py-12 text-red-500">
+                      Failed to load PDF
+                    </div>
+                  }
+                >
+                  {numPages && Array.from(new Array(numPages), (_, index) => (
+                    <Page
+                      key={`page_${index + 1}`}
+                      pageNumber={index + 1}
+                      width={pdfWidth}
+                      renderTextLayer={false}
+                      renderAnnotationLayer={false}
+                      className="mb-4"
+                    />
+                  ))}
+                </Document>
+              </div>
            </div>
         </div>
 
@@ -206,7 +280,7 @@ export default function Workspace({ params }: WorkspaceProps) {
                      <span className="text-xs font-bold text-indigo-300 uppercase tracking-wider">Voice Guide</span>
                   </div>
                   <p className="text-base md:text-lg font-medium text-white leading-relaxed text-center">
-                    "{activeStepData.voiceGuidance}"
+                    "{activeStepData.description}"
                   </p>
                </div>
             </div>
@@ -237,9 +311,15 @@ export default function Workspace({ params }: WorkspaceProps) {
           </div>
 
           <div className="absolute top-6 right-6 flex gap-2 z-30">
-             <button 
-               onClick={() => setIsPlaying(true)}
+             <button
+               onClick={() => {
+                 if (audioRef.current) {
+                   audioRef.current.currentTime = 0;
+                   audioRef.current.play();
+                 }
+               }}
                className="p-2 bg-black/50 backdrop-blur hover:bg-indigo-600 rounded-lg border border-white/10 text-zinc-300 hover:text-white transition-all"
+               title="Replay audio"
              >
                <PlayCircle className="w-5 h-5" />
              </button>

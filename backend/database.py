@@ -14,6 +14,14 @@ def init_db():
             glb_filename TEXT,
             mp3_filename TEXT,
             instruction_filename TEXT,
+            page_number INTEGER,
+            y_coordinate REAL,
+            bbox_x0 REAL,
+            bbox_y0 REAL,
+            bbox_x1 REAL,
+            bbox_y1 REAL,
+            bbox_width REAL,
+            bbox_height REAL,
 
             PRIMARY KEY (hash, step)
         )
@@ -37,7 +45,8 @@ def store_gemini_results(
     pdf_hash_bytes: bytes,
     pdf_filename: str,
     image_filenames: list,
-    gemini_results: dict
+    gemini_results: dict,
+    image_positions: list = None
 ) -> bytes:
     """
     Store Gemini processing results in database.
@@ -49,6 +58,7 @@ def store_gemini_results(
         pdf_filename: PDF filename (without volume/)
         image_filenames: List of all image filenames
         gemini_results: Results from Gemini processing
+        image_positions: Optional list of image position data with page_number, y_coordinate, bbox
 
     Returns:
         PDF hash as bytes
@@ -105,6 +115,11 @@ def store_gemini_results(
         with open(instruction_path, "w", encoding="utf-8") as f:
             f.write(f"{title}\n\n{description}")
 
+        # Get position data for this image if available
+        position_data = None
+        if image_positions and image_index < len(image_positions):
+            position_data = image_positions[image_index]
+
         # Insert row for this step
         con.execute('''
             INSERT INTO instructions (
@@ -114,8 +129,16 @@ def store_gemini_results(
                 image_filename,
                 glb_filename,
                 mp3_filename,
-                instruction_filename
-            ) VALUES (?, ?, ?, ?, ?, ?, ?)
+                instruction_filename,
+                page_number,
+                y_coordinate,
+                bbox_x0,
+                bbox_y0,
+                bbox_x1,
+                bbox_y1,
+                bbox_width,
+                bbox_height
+            ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
         ''', (
             pdf_hash_bytes,
             pdf_filename,
@@ -123,7 +146,15 @@ def store_gemini_results(
             new_image_filename,
             None,  # glb added later
             None,  # mp3 added later
-            instruction_filename
+            instruction_filename,
+            position_data.get('page_number') if position_data else None,
+            position_data.get('y_coordinate') if position_data else None,
+            position_data['bbox'].get('x0') if position_data and position_data.get('bbox') else None,
+            position_data['bbox'].get('y0') if position_data and position_data.get('bbox') else None,
+            position_data['bbox'].get('x1') if position_data and position_data.get('bbox') else None,
+            position_data['bbox'].get('y1') if position_data and position_data.get('bbox') else None,
+            position_data['bbox'].get('width') if position_data and position_data.get('bbox') else None,
+            position_data['bbox'].get('height') if position_data and position_data.get('bbox') else None
         ))
 
         step_number += 1
@@ -198,3 +229,107 @@ def get_instructions_with_images(pdf_hash_bytes: bytes) -> list:
         (pdf_hash_bytes,)
     )
     return cursor.fetchall()
+
+def get_all_pdfs() -> list:
+    """
+    Get all unique PDFs in the database.
+
+    Returns:
+        List of tuples (hash_hex, pdf_filename, step_count)
+    """
+    cursor = con.execute('''
+        SELECT hash, pdf_filename, COUNT(*) as step_count
+        FROM instructions
+        GROUP BY hash, pdf_filename
+        ORDER BY MAX(rowid) DESC
+    ''')
+
+    results = []
+    for row in cursor.fetchall():
+        hash_bytes, pdf_filename, step_count = row
+        hash_hex = hash_bytes.hex()[:16]
+        results.append((hash_hex, pdf_filename, step_count))
+
+    return results
+
+def get_pdf_filename_by_hash(hash_hex: str) -> str:
+    """
+    Get PDF filename by hash.
+
+    Args:
+        hash_hex: First 16 chars of PDF hash
+
+    Returns:
+        PDF filename or None if not found
+    """
+    # Convert hex string back to bytes (with full hash)
+    # We only stored first 16 chars as hex, so we need to match with LIKE
+    cursor = con.execute(
+        'SELECT pdf_filename FROM instructions WHERE hex(hash) LIKE ? LIMIT 1',
+        (hash_hex.upper() + '%',)
+    )
+    result = cursor.fetchone()
+    return result[0] if result else None
+
+def get_file_info_by_hash_step(hash_hex: str, step: int) -> dict:
+    """
+    Get all file information for a specific hash and step.
+
+    Args:
+        hash_hex: First 16 chars of PDF hash
+        step: Step number
+
+    Returns:
+        Dictionary with filenames or None if not found
+    """
+    cursor = con.execute(
+        '''SELECT image_filename, glb_filename, mp3_filename, instruction_filename
+           FROM instructions
+           WHERE hex(hash) LIKE ? AND step = ?''',
+        (hash_hex.upper() + '%', step)
+    )
+    result = cursor.fetchone()
+
+    if not result:
+        return None
+
+    return {
+        'image_filename': result[0],
+        'glb_filename': result[1],
+        'mp3_filename': result[2],
+        'instruction_filename': result[3]
+    }
+
+def get_step_position(hash_hex: str, step: int) -> dict:
+    """
+    Get page number and Y-coordinate for a specific step.
+
+    Args:
+        hash_hex: First 16 chars of PDF hash
+        step: Step number
+
+    Returns:
+        Dictionary with position data or None if not found
+    """
+    cursor = con.execute(
+        '''SELECT page_number, y_coordinate, bbox_x0, bbox_y0, bbox_x1, bbox_y1,
+                  bbox_width, bbox_height
+           FROM instructions WHERE hex(hash) LIKE ? AND step = ?''',
+        (hash_hex.upper() + '%', step)
+    )
+    result = cursor.fetchone()
+    if not result:
+        return None
+
+    return {
+        'page_number': result[0],
+        'y_coordinate': result[1],
+        'bbox': {
+            'x0': result[2],
+            'y0': result[3],
+            'x1': result[4],
+            'y1': result[5],
+            'width': result[6],
+            'height': result[7]
+        }
+    }
