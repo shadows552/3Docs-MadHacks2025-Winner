@@ -34,12 +34,15 @@ export default function Dashboard() {
       const response = await fetchPDFs();
 
       // Transform backend data to project format
-      const loadedProjects: Project[] = response.pdfs.map((pdf) => ({
-        id: pdf.hash,
-        title: pdf.pdf_filename.replace('.pdf', ''),
-        stepCount: pdf.step_count,
-        thumbnailUrl: getImageUrl(pdf.hash, 0) // Use first image as thumbnail
-      }));
+      // Filter out demo.pdf from the dashboard display
+      const loadedProjects: Project[] = response.pdfs
+        .filter((pdf) => pdf.pdf_filename !== 'demo.pdf')
+        .map((pdf) => ({
+          id: pdf.hash,
+          title: pdf.pdf_filename.replace('.pdf', ''),
+          stepCount: pdf.step_count,
+          thumbnailUrl: getImageUrl(pdf.hash, 0) // Use first image as thumbnail
+        }));
 
       setProjects(loadedProjects);
       setError(null);
