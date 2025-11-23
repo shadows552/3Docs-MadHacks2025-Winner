@@ -79,22 +79,7 @@ export default function Dashboard() {
   };
 
   return (
-<<<<<<< Updated upstream
-    <div className="min-h-screen bg-zinc-50 font-sans text-zinc-900 selection:bg-indigo-100">
-      
-      {/* 1. NAVBAR: Minimal and clean */}
-      <nav className="sticky top-0 z-50 bg-white/80 backdrop-blur-md border-b border-zinc-200 px-6 h-16 flex items-center justify-between">
-        <div className="flex items-center gap-2">
-          <div className="bg-indigo-600 p-1.5 rounded-lg">
-            <Box className="w-5 h-5 text-white" />
-          </div>
-          <span className="font-bold text-lg tracking-tight text-zinc-800">3Docs</span>
-        </div>
-      </nav>
-
-=======
     <div className="min-h-screen bg-zinc-900 font-sans text-white selection:bg-indigo-900">
->>>>>>> Stashed changes
       <main className="max-w-6xl mx-auto px-6 py-12">
         <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-6">
 

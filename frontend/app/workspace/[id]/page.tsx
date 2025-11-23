@@ -106,12 +106,8 @@ export default function Workspace({ params }: WorkspaceProps) {
 
   const [currentStep, setCurrentStep] = useState<number>(1);
   const [isPlaying, setIsPlaying] = useState<boolean>(false);
-<<<<<<< Updated upstream
-  const [leftPanelWidth, setLeftPanelWidth] = useState<number>(60); // 60% for 3D viewer, 40% for PDF viewer
-=======
   const [isMuted, setIsMuted] = useState<boolean>(false);
   const [leftPanelWidth, setLeftPanelWidth] = useState<number>(66.66); // 2/3 in percentage
->>>>>>> Stashed changes
   const [isResizing, setIsResizing] = useState<boolean>(false);
   const containerRef = useRef<HTMLDivElement>(null);
 
@@ -373,92 +369,8 @@ export default function Workspace({ params }: WorkspaceProps) {
       </header>
 
       {/* MAIN SPLIT VIEW */}
-<<<<<<< Updated upstream
-      <div ref={containerRef} className="flex-1 flex flex-col md:flex-row overflow-hidden">
-
-        {/* LEFT PANEL: 3D VIEWER */}
-        <div
-          className="bg-black relative flex flex-col h-1/2 md:h-full"
-          style={{ width: `${leftPanelWidth}%` }}
-        >
-          <div className="absolute inset-0 z-0">
-            <AssemblyScene modelUrl={activeStepData.modelUrl} />
-          </div>
-
-          {/* SUBTITLES */}
-          {isPlaying && (
-            <div className="absolute bottom-8 left-8 right-8 z-20 flex justify-start pointer-events-none">
-               <div className="bg-black/20 backdrop-blur-md border border-white/10 p-4 md:p-6 rounded-2xl shadow-2xl max-w-xl animate-in fade-in slide-in-from-bottom-4 duration-500 pointer-events-auto">
-                  <div className="flex items-center gap-3 mb-2">
-                     <Volume2 className="w-4 h-4 text-indigo-400 animate-pulse" />
-                     <span className="text-xs font-bold text-indigo-300 uppercase tracking-wider">Voice Guide</span>
-                  </div>
-                  <p className="text-sm md:text-base font-medium text-white/60 leading-relaxed text-left">
-                    "{activeStepData.description}"
-                  </p>
-               </div>
-            </div>
-          )}
-
-          {/* CONTROLS */}
-          <div className="absolute bottom-8 right-8 flex items-center gap-4 bg-zinc-900/90 backdrop-blur-md p-2 rounded-2xl shadow-2xl border border-white/10 z-30">
-             <button
-               onClick={() => setCurrentStep(Math.max(1, currentStep - 1))}
-               disabled={currentStep === 1}
-               className="p-3 rounded-xl hover:bg-zinc-800 disabled:opacity-30 transition-all text-zinc-200"
-             >
-               <ArrowLeft className="w-6 h-6" />
-             </button>
-
-             <button
-               onClick={() => setCurrentStep(Math.min(totalSteps, currentStep + 1))}
-               disabled={currentStep === totalSteps}
-               className="group p-3 rounded-xl bg-indigo-600 text-white hover:bg-indigo-500 disabled:opacity-30 transition-all shadow-lg shadow-indigo-900/20"
-             >
-               <ArrowRight className="w-6 h-6 group-hover:translate-x-1 transition-transform" />
-             </button>
-          </div>
-
-          <div className="absolute top-6 right-6 flex gap-2 z-30">
-             <button
-               onClick={() => {
-                 if (audioRef.current) {
-                   audioRef.current.currentTime = 0;
-                   audioRef.current.play();
-                 }
-               }}
-               className="p-2 bg-black/50 backdrop-blur hover:bg-indigo-600 rounded-lg border border-white/10 text-zinc-300 hover:text-white transition-all"
-               title="Replay audio"
-             >
-               <PlayCircle className="w-5 h-5" />
-             </button>
-          </div>
-        </div>
-
-        {/* RESIZE HANDLE */}
-        <div
-          className="hidden md:block w-1 bg-zinc-700 hover:bg-indigo-500 cursor-col-resize transition-colors relative group"
-          onMouseDown={() => setIsResizing(true)}
-        >
-          <div className="absolute inset-y-0 -left-1 -right-1" />
-        </div>
-
-        {/* RIGHT PANEL: PDF VIEWER */}
-        <div
-          className="bg-zinc-800 relative flex flex-col h-1/2 md:h-full"
-          style={{ width: `${100 - leftPanelWidth}%` }}
-        >
-           <div className="h-12 border-b border-zinc-700 flex items-center justify-between px-4 bg-zinc-800/50 backdrop-blur shrink-0">
-              <span className="text-xs font-medium text-zinc-400 flex items-center gap-2">
-                <FileText className="w-4 h-4" />
-                {manualData.productName}
-              </span>
-              <span className="text-xs bg-black/30 px-2 py-1 rounded text-zinc-300">
-                Step {currentStep} of {totalSteps}
-              </span>
-=======
       <div className="flex-1 flex flex-col md:flex-row overflow-hidden">
-        
+
         {/* LEFT PANEL: PDF VIEWER */}
         <div className="w-full md:w-1/2 border-b md:border-b-0 md:border-r border-zinc-700 relative flex flex-col h-1/2 md:h-full">
            {/* Glass navbar overlaying PDF */}
@@ -472,7 +384,6 @@ export default function Workspace({ params }: WorkspaceProps) {
                  Page {currentPdfPage} of {numPages}
                </span>
              </div>
->>>>>>> Stashed changes
            </div>
 
            {/* PDF VIEWER CONTAINER */}
@@ -510,12 +421,10 @@ export default function Workspace({ params }: WorkspaceProps) {
               </div>
            </div>
         </div>
-<<<<<<< Updated upstream
-=======
 
         {/* RIGHT PANEL: DYNAMIC 3D SCENE */}
         <div className="w-full md:w-1/2 bg-black relative h-1/2 md:h-full">
-          
+
           <div className="absolute inset-0 z-0">
             <AssemblyScene modelUrl={activeStepData.modelUrl} />
           </div>
@@ -559,7 +468,7 @@ export default function Workspace({ params }: WorkspaceProps) {
               </button>
             </div>
           </div>
-          
+
 
           <div className="absolute top-6 right-6 flex gap-2 z-30">
              <button
@@ -584,7 +493,6 @@ export default function Workspace({ params }: WorkspaceProps) {
           </div>
 
         </div>
->>>>>>> Stashed changes
       </div>
     </div>
   );
