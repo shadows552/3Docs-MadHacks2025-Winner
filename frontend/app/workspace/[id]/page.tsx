@@ -154,7 +154,7 @@ export default function Workspace({ params }: WorkspaceProps) {
           </Link>
           <div className="h-4 w-[1px] bg-zinc-700 mx-1" />
           <nav className="flex items-center gap-2 text-sm">
-            <span className="text-zinc-400">Dashboard</span>
+            <Link href="/" className="text-zinc-400 hover:text-white transition-colors">Dashboard</Link>
             <ChevronRight className="w-4 h-4 text-zinc-600" />
             <span className="font-semibold text-zinc-100">{manualData.productName}</span>
           </nav>
@@ -163,35 +163,9 @@ export default function Workspace({ params }: WorkspaceProps) {
 
       {/* MAIN SPLIT VIEW */}
       <div className="flex-1 flex flex-col md:flex-row overflow-hidden">
-        
-        {/* LEFT PANEL: REAL PDF VIEWER */}
-        <div className="w-full md:w-1/2 bg-zinc-800 border-b md:border-b-0 md:border-r border-zinc-700 relative flex flex-col h-1/2 md:h-full">
-           <div className="h-12 border-b border-zinc-700 flex items-center justify-between px-4 bg-zinc-800/50 backdrop-blur shrink-0">
-              <span className="text-xs font-medium text-zinc-400 flex items-center gap-2">
-                <FileText className="w-4 h-4" />
-                {manualData.pdfTitle}
-              </span>
-              <span className="text-xs bg-black/30 px-2 py-1 rounded text-zinc-300">
-                Page {activeStepData.pdfPage}
-              </span>
-           </div>
 
-           {/* PDF IFRAME CONTAINER */}
-           <div className="flex-1 bg-zinc-900 relative">
-              <iframe 
-                /* 4. FIX: Add key prop to force re-render when page changes.
-                   This solves your previous issue where the PDF wouldn't update.
-                */
-                key={activeStepData.pdfPage} 
-                src={`/sample.pdf#page=${activeStepData.pdfPage}`}
-                className="w-full h-full border-0"
-                title="Instruction Manual PDF"
-              />
-           </div>
-        </div>
-
-        {/* RIGHT PANEL: DYNAMIC 3D SCENE */}
-        <div className="w-full md:w-1/2 bg-black relative h-1/2 md:h-full">
+        {/* LEFT PANEL: DYNAMIC 3D SCENE */}
+        <div className="w-full md:w-2/3 bg-black relative h-1/2 md:h-full">
           
           <div className="absolute inset-0 z-0">
             <AssemblyScene modelUrl={activeStepData.modelUrl} />
@@ -213,7 +187,7 @@ export default function Workspace({ params }: WorkspaceProps) {
           )}
 
           {/* CONTROLS */}
-          <div className="absolute bottom-8 left-1/2 -translate-x-1/2 flex items-center gap-4 bg-zinc-900/90 backdrop-blur-md p-2 rounded-2xl shadow-2xl border border-white/10 z-30">
+          <div className="absolute bottom-8 right-8 flex items-center gap-4 bg-zinc-900/90 backdrop-blur-md p-2 rounded-2xl shadow-2xl border border-white/10 z-30">
              <button 
                onClick={() => setCurrentStep(Math.max(1, currentStep - 1))}
                disabled={currentStep === 1}
@@ -237,17 +211,37 @@ export default function Workspace({ params }: WorkspaceProps) {
           </div>
 
           <div className="absolute top-6 right-6 flex gap-2 z-30">
-             <button 
+             <button
                onClick={() => setIsPlaying(true)}
                className="p-2 bg-black/50 backdrop-blur hover:bg-indigo-600 rounded-lg border border-white/10 text-zinc-300 hover:text-white transition-all"
              >
                <PlayCircle className="w-5 h-5" />
              </button>
-             <button className="p-2 bg-black/50 backdrop-blur hover:bg-zinc-800 rounded-lg border border-white/10 text-zinc-300 transition-all">
-               <Maximize2 className="w-5 h-5" />
-             </button>
           </div>
 
+        </div>
+
+        {/* RIGHT PANEL: REAL PDF VIEWER */}
+        <div className="w-full md:w-1/3 bg-zinc-800 border-b md:border-b-0 md:border-l border-zinc-700 relative flex flex-col h-1/2 md:h-full">
+           <div className="h-12 border-b border-zinc-700 flex items-center justify-between px-4 bg-zinc-800/50 backdrop-blur shrink-0">
+              <span className="text-xs font-medium text-zinc-400 flex items-center gap-2">
+                <FileText className="w-4 h-4" />
+                {manualData.pdfTitle}
+              </span>
+              <span className="text-xs bg-black/30 px-2 py-1 rounded text-zinc-300">
+                Page {activeStepData.pdfPage}
+              </span>
+           </div>
+
+           {/* PDF IFRAME CONTAINER */}
+           <div className="flex-1 bg-zinc-900 relative">
+              <iframe
+                key={activeStepData.pdfPage}
+                src={`/sample.pdf#page=${activeStepData.pdfPage}`}
+                className="w-full h-full border-0"
+                title="Instruction Manual PDF"
+              />
+           </div>
         </div>
       </div>
     </div>
