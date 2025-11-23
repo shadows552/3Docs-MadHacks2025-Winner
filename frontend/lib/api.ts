@@ -149,3 +149,40 @@ export async function fetchInstructionData(hash: string, step: number): Promise<
     description: text.trim()
   };
 }
+
+/**
+ * Position data for a step
+ */
+export interface StepPosition {
+  page_number: number;
+  y_coordinate: number;
+  bbox: {
+    x0: number;
+    y0: number;
+    x1: number;
+    y1: number;
+    width: number;
+    height: number;
+  };
+}
+
+/**
+ * Fetch step position data (page number and Y-coordinate)
+ */
+export async function fetchStepPosition(hash: string, step: number): Promise<StepPosition | null> {
+  try {
+    const response = await fetch(`${API_BASE_URL}/step-position/${hash}/${step}`);
+    if (!response.ok) {
+      return null;
+    }
+    const data = await response.json();
+    return {
+      page_number: data.page_number,
+      y_coordinate: data.y_coordinate,
+      bbox: data.bbox
+    };
+  } catch (error) {
+    console.error(`Failed to fetch position for step ${step}:`, error);
+    return null;
+  }
+}

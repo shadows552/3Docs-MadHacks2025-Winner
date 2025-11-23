@@ -1,5 +1,5 @@
 "use client";
-import React, { useState, useEffect, use } from 'react';
+import React, { useState, useEffect, use, useRef } from 'react';
 import Link from 'next/link';
 import {
   ArrowLeft,
@@ -18,10 +18,12 @@ import {
   fetchPDFInfo,
   fetchPDFSteps,
   fetchInstructionData,
+  fetchStepPosition,
   getPDFUrl,
   getImageUrl,
   getGLBUrl,
-  getMP3Url
+  getMP3Url,
+  type StepPosition
 } from '@/lib/api';
 
 // Configure PDF.js worker
@@ -35,6 +37,7 @@ interface ManualStep {
   imageUrl: string;
   modelUrl: string;
   audioUrl: string;
+  position: StepPosition | null;
 }
 
 interface ManualData {
@@ -63,16 +66,21 @@ const fetchManualData = async (hash: string): Promise<ManualData> => {
   // Fetch all step numbers
   const stepNumbers = await fetchPDFSteps(hash);
 
-  // Fetch instruction data for all steps in parallel
+  // Fetch instruction data and position data for all steps in parallel
   const stepDataPromises = stepNumbers.map(async (stepNum) => {
-    const instructionData = await fetchInstructionData(hash, stepNum);
+    const [instructionData, position] = await Promise.all([
+      fetchInstructionData(hash, stepNum),
+      fetchStepPosition(hash, stepNum)
+    ]);
+
     return {
       stepNumber: stepNum,
       title: instructionData.title,
       description: instructionData.description,
       imageUrl: getImageUrl(hash, stepNum),
       modelUrl: getGLBUrl(hash, stepNum),
-      audioUrl: getMP3Url(hash, stepNum)
+      audioUrl: getMP3Url(hash, stepNum),
+      position: position
     };
   });
 
@@ -96,6 +104,8 @@ export default function Workspace({ params }: WorkspaceProps) {
 
   const [currentStep, setCurrentStep] = useState<number>(1);
   const [isPlaying, setIsPlaying] = useState<boolean>(false);
+  const [leftPanelWidth, setLeftPanelWidth] = useState<number>(66.66); // 2/3 in percentage
+  const [isResizing, setIsResizing] = useState<boolean>(false);
 
   // PDF viewer state
   const [numPages, setNumPages] = useState<number | null>(null);
@@ -171,6 +181,68 @@ export default function Workspace({ params }: WorkspaceProps) {
       audioRef.current = null;
     };
   }, [currentStep, activeStepData]);
+
+  // Refs for PDF pages (for scrolling)
+  const pageRefs = useRef<(HTMLDivElement | null)[]>([]);
+
+  // --- PDF AUTO-SCROLL ---
+  useEffect(() => {
+    if (!activeStepData?.position || !pdfContainerRef.current) return;
+
+    const { page_number, y_coordinate } = activeStepData.position;
+
+    // Get the page element
+    const pageElement = pageRefs.current[page_number];
+    if (!pageElement) return;
+
+    // Calculate scroll position
+    const pageTop = pageElement.offsetTop;
+
+    // Calculate scale factor (rendered PDF size vs original)
+    // Standard PDF page width is 612 points
+    const scaleFactor = pdfWidth / 612; // Approximate scale
+
+    // Apply scale to Y coordinate
+    const scaledY = y_coordinate * scaleFactor;
+
+    // Calculate target scroll position (with 100px offset to center better)
+    const targetScrollTop = pageTop + scaledY - 100;
+
+    // Smooth scroll to position
+    pdfContainerRef.current.scrollTo({
+      top: targetScrollTop,
+      behavior: 'smooth'
+    });
+  }, [currentStep, activeStepData, pdfWidth]);
+
+  // --- RESIZE HANDLERS ---
+  const handleMouseDown = () => {
+    setIsResizing(true);
+  };
+
+  useEffect(() => {
+    const handleMouseMove = (e: MouseEvent) => {
+      if (!isResizing) return;
+      const newWidth = (e.clientX / window.innerWidth) * 100;
+      if (newWidth > 20 && newWidth < 80) {
+        setLeftPanelWidth(newWidth);
+      }
+    };
+
+    const handleMouseUp = () => {
+      setIsResizing(false);
+    };
+
+    if (isResizing) {
+      document.addEventListener('mousemove', handleMouseMove);
+      document.addEventListener('mouseup', handleMouseUp);
+    }
+
+    return () => {
+      document.removeEventListener('mousemove', handleMouseMove);
+      document.removeEventListener('mouseup', handleMouseUp);
+    };
+  }, [isResizing]);
 
   if (loading) {
     return (
@@ -250,14 +322,18 @@ export default function Workspace({ params }: WorkspaceProps) {
                   }
                 >
                   {numPages && Array.from(new Array(numPages), (_, index) => (
-                    <Page
+                    <div
                       key={`page_${index + 1}`}
-                      pageNumber={index + 1}
-                      width={pdfWidth}
-                      renderTextLayer={false}
-                      renderAnnotationLayer={false}
-                      className="mb-4"
-                    />
+                      ref={(el) => { pageRefs.current[index] = el; }}
+                    >
+                      <Page
+                        pageNumber={index + 1}
+                        width={pdfWidth}
+                        renderTextLayer={false}
+                        renderAnnotationLayer={false}
+                        className="mb-4"
+                      />
+                    </div>
                   ))}
                 </Document>
               </div>
@@ -273,8 +349,8 @@ export default function Workspace({ params }: WorkspaceProps) {
 
           {/* SUBTITLES */}
           {isPlaying && (
-            <div className="absolute bottom-32 left-8 right-8 z-20 flex justify-center pointer-events-none">
-               <div className="bg-black/70 backdrop-blur-md border border-white/10 p-4 md:p-6 rounded-2xl shadow-2xl max-w-xl animate-in fade-in slide-in-from-bottom-4 duration-500 pointer-events-auto">
+            <div className="absolute bottom-20 left-8 right-8 z-20 flex justify-center pointer-events-none">
+               <div className="bg-black/40 backdrop-blur-md border border-white/10 p-4 md:p-6 rounded-2xl shadow-2xl max-w-xl animate-in fade-in slide-in-from-bottom-4 duration-500 pointer-events-auto">
                   <div className="flex items-center gap-3 mb-2">
                      <Volume2 className="w-4 h-4 text-indigo-400 animate-pulse" />
                      <span className="text-xs font-bold text-indigo-300 uppercase tracking-wider">Voice Guide</span>
@@ -287,7 +363,7 @@ export default function Workspace({ params }: WorkspaceProps) {
           )}
 
           {/* CONTROLS */}
-          <div className="absolute bottom-8 left-1/2 -translate-x-1/2 flex items-center gap-4 bg-zinc-900/90 backdrop-blur-md p-2 rounded-2xl shadow-2xl border border-white/10 z-30">
+          <div className="absolute bottom-8 right-8 flex items-center gap-4 bg-zinc-900/90 backdrop-blur-md p-2 rounded-2xl shadow-2xl border border-white/10 z-30">
              <button 
                onClick={() => setCurrentStep(Math.max(1, currentStep - 1))}
                disabled={currentStep === 1}
@@ -323,11 +399,17 @@ export default function Workspace({ params }: WorkspaceProps) {
              >
                <PlayCircle className="w-5 h-5" />
              </button>
-             <button className="p-2 bg-black/50 backdrop-blur hover:bg-zinc-800 rounded-lg border border-white/10 text-zinc-300 transition-all">
-               <Maximize2 className="w-5 h-5" />
-             </button>
           </div>
 
+        </div>
+
+        {/* RESIZABLE DIVIDER */}
+        <div
+          className="hidden md:block w-1 bg-zinc-700 hover:bg-indigo-500 cursor-col-resize transition-colors relative z-40"
+          onMouseDown={handleMouseDown}
+          style={{ cursor: isResizing ? 'col-resize' : 'col-resize' }}
+        >
+          <div className="absolute inset-y-0 -left-1 -right-1" />
         </div>
       </div>
     </div>
