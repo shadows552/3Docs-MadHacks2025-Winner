@@ -1,5 +1,6 @@
 "use client";
-import React, { useState, useEffect } from 'react';
+// 1. Add 'use' to imports
+import React, { useState, useEffect, use } from 'react';
 import Link from 'next/link';
 import { 
   ArrowLeft, 
@@ -9,40 +10,143 @@ import {
   Maximize2,
   PlayCircle,
   FileText,
-  Volume2
+  Volume2,
+  Loader2
 } from 'lucide-react';
 import AssemblyScene from '@/components/AssemblyScene';
 
-// Mock Data
-const MANUAL_DATA = {
-  productName: "SANDSBERG Table",
-  steps: [
-    { stepNumber: 1, title: "Prepare Workspace", description: "Place the table frame upside down on a soft surface.", voiceGuidance: "Start by placing the table top upside down on a rug or carpet to prevent scratches.", pdfPage: 1 },
-    { stepNumber: 2, title: "Insert Brackets", description: "Push the plastic corner brackets into the metal frame.", voiceGuidance: "Take the four plastic corner brackets and push them into the frame slots until they click.", pdfPage: 2 },
-    { stepNumber: 3, title: "Secure Frame", description: "Align frame and tighten screws.", voiceGuidance: "Use the provided Allen key to firmly secure the frame using the ten medium-sized screws.", pdfPage: 3 },
-    { stepNumber: 4, title: "Attach Legs", description: "Screw in the legs.", voiceGuidance: "Finally, screw the legs into the brackets. Hand tighten them first, then give them a final turn.", pdfPage: 4 },
-  ]
+// --- TYPES ---
+interface ManualStep {
+  stepNumber: number;
+  title: string;
+  description: string;
+  voiceGuidance: string;
+  pdfPage: number;
+  modelUrl: string;
+}
+
+interface ManualData {
+  productName: string;
+  pdfTitle: string;
+  steps: ManualStep[];
+}
+
+// 2. Update Interface: params is now a Promise
+interface WorkspaceProps {
+  params: Promise<{
+    id: string;
+  }>;
+}
+
+const mockFetchManualData = async (id: string): Promise<ManualData> => {
+  await new Promise(resolve => setTimeout(resolve, 1500));
+  return {
+    productName: "SANDSBERG Table",
+    pdfTitle: "SANDSBERG_assembly_instructions.pdf",
+    steps: [
+      { 
+        stepNumber: 1, 
+        title: "Prepare Workspace", 
+        description: "Place the table frame upside down on a soft surface.", 
+        voiceGuidance: "Start by placing the table top upside down on a rug or carpet to prevent scratches.", 
+        pdfPage: 1,
+        modelUrl: "https://raw.githubusercontent.com/KhronosGroup/glTF-Sample-Models/master/2.0/Box/glTF-Binary/Box.glb"
+      },
+      { 
+        stepNumber: 2, 
+        title: "Insert Brackets", 
+        description: "Push the plastic corner brackets into the metal frame.", 
+        voiceGuidance: "Take the four plastic corner brackets and push them into the frame slots until they click.", 
+        pdfPage: 2,
+        modelUrl: "https://raw.githubusercontent.com/KhronosGroup/glTF-Sample-Models/main/2.0/ToyCar/glTF-Binary/ToyCar.glb"
+      },
+      { 
+        stepNumber: 3, 
+        title: "Secure Frame", 
+        description: "Align frame and tighten screws.", 
+        voiceGuidance: "Use the provided Allen key to firmly secure the frame using the ten medium-sized screws.", 
+        pdfPage: 3,
+        modelUrl: "https://raw.githubusercontent.com/KhronosGroup/glTF-Sample-Models/master/2.0/Lantern/glTF-Binary/Lantern.glb"
+      },
+      { 
+        stepNumber: 4, 
+        title: "Attach Legs", 
+        description: "Screw in the legs.", 
+        voiceGuidance: "Finally, screw the legs into the brackets. Hand tighten them first, then give them a final turn.", 
+        pdfPage: 4,
+        modelUrl: "https://raw.githubusercontent.com/KhronosGroup/glTF-Sample-Models/master/2.0/Avocado/glTF-Binary/Avocado.glb"
+      },
+    ]
+  };
 };
 
-export default function Workspace() {
-  const [currentStep, setCurrentStep] = useState(1);
-  const [isPlaying, setIsPlaying] = useState(false);
-  
-  const totalSteps = MANUAL_DATA.steps.length;
-  const activeStepData = MANUAL_DATA.steps[currentStep - 1];
+export default function Workspace({ params }: WorkspaceProps) {
+  // 3. Unwrap the params Promise using 'use'
+  // This extracts 'id' safely for use in the component
+  const { id } = use(params);
 
-  // Simulate Voice Playing (Duration logic)
+  const [manualData, setManualData] = useState<ManualData | null>(null);
+  const [loading, setLoading] = useState<boolean>(true);
+  const [error, setError] = useState<string | null>(null);
+  
+  const [currentStep, setCurrentStep] = useState<number>(1);
+  const [isPlaying, setIsPlaying] = useState<boolean>(false);
+
+  // --- FETCH DATA ---
   useEffect(() => {
+    const loadData = async () => {
+      try {
+        setLoading(true);
+        // Use the unwrapped 'id' variable here
+        const data = await mockFetchManualData(id);
+        setManualData(data);
+      } catch (err) {
+        console.error("Failed to load manual", err);
+        setError("Failed to load instruction manual.");
+      } finally {
+        setLoading(false);
+      }
+    };
+    loadData();
+  }, [id]); // Depend on the unwrapped id
+
+  const activeStepData = manualData ? manualData.steps[currentStep - 1] : null;
+  const totalSteps = manualData ? manualData.steps.length : 0;
+
+  // --- VOICE SIMULATION ---
+  useEffect(() => {
+    if (!activeStepData) return;
     setIsPlaying(true);
-    // Simulate length of audio (e.g., 4 seconds)
     const timer = setTimeout(() => setIsPlaying(false), 4000);
     return () => clearTimeout(timer);
-  }, [currentStep]);
+  }, [currentStep, activeStepData]);
+
+  if (loading) {
+    return (
+      <div className="h-screen w-full flex flex-col items-center justify-center bg-zinc-900 text-white">
+        <Loader2 className="w-10 h-10 animate-spin text-indigo-500 mb-4" />
+        <h2 className="text-xl font-semibold">Loading 3D Manual...</h2>
+        <p className="text-zinc-500">Fetching assets and instructions</p>
+      </div>
+    );
+  }
+
+  if (error || !manualData || !activeStepData) {
+    return (
+      <div className="h-screen w-full flex items-center justify-center bg-zinc-900 text-white">
+        <div className="text-center">
+          <h2 className="text-xl font-bold text-red-500 mb-2">Error</h2>
+          <p>{error || "Manual not found"}</p>
+          <a href="/" className="mt-4 inline-block text-indigo-400 hover:underline">Return to Dashboard</a>
+        </div>
+      </div>
+    );
+  }
 
   return (
     <div className="h-screen w-full flex flex-col bg-zinc-900 font-sans text-white overflow-hidden">
       
-      {/* 1. HEADER */}
+      {/* HEADER */}
       <header className="h-14 bg-zinc-900 border-b border-zinc-800 flex items-center justify-between px-4 shrink-0 z-20">
         <div className="flex items-center gap-3">
           <Link href="/" className="p-2 hover:bg-zinc-800 rounded-lg transition-colors text-zinc-400 hover:text-white">
@@ -52,68 +156,63 @@ export default function Workspace() {
           <nav className="flex items-center gap-2 text-sm">
             <span className="text-zinc-400">Dashboard</span>
             <ChevronRight className="w-4 h-4 text-zinc-600" />
-            <span className="font-semibold text-zinc-100">{MANUAL_DATA.productName}</span>
+            <span className="font-semibold text-zinc-100">{manualData.productName}</span>
           </nav>
         </div>
       </header>
 
-      {/* 2. MAIN SPLIT VIEW */}
-      <div className="flex-1 flex flex-row overflow-hidden">
+      {/* MAIN SPLIT VIEW */}
+      <div className="flex-1 flex flex-col md:flex-row overflow-hidden">
         
-        {/* LEFT PANEL: PDF VIEWER (50%) */}
-        <div className="w-1/2 bg-zinc-800 border-r border-zinc-700 relative flex flex-col">
-           {/* PDF Toolbar */}
-           <div className="h-12 border-b border-zinc-700 flex items-center justify-between px-4 bg-zinc-800/50 backdrop-blur">
+        {/* LEFT PANEL: REAL PDF VIEWER */}
+        <div className="w-full md:w-1/2 bg-zinc-800 border-b md:border-b-0 md:border-r border-zinc-700 relative flex flex-col h-1/2 md:h-full">
+           <div className="h-12 border-b border-zinc-700 flex items-center justify-between px-4 bg-zinc-800/50 backdrop-blur shrink-0">
               <span className="text-xs font-medium text-zinc-400 flex items-center gap-2">
                 <FileText className="w-4 h-4" />
-                Original Manual.pdf
+                {manualData.pdfTitle}
               </span>
               <span className="text-xs bg-black/30 px-2 py-1 rounded text-zinc-300">
-                Page {activeStepData.pdfPage} / 12
+                Page {activeStepData.pdfPage}
               </span>
            </div>
 
-           {/* PDF Content Area (Placeholder) */}
-           <div className="flex-1 flex items-center justify-center bg-zinc-500/10 p-8 overflow-hidden">
-              <div className="w-full h-full bg-white shadow-2xl rounded-sm flex items-center justify-center relative group">
-                 {/* Simulate PDF Page Content */}
-                 <div className="text-center opacity-30 group-hover:opacity-40 transition-opacity">
-                    <FileText className="w-24 h-24 mx-auto text-zinc-900 mb-4" />
-                    <p className="text-zinc-900 font-serif text-xl">PDF Page {activeStepData.pdfPage}</p>
-                    <p className="text-zinc-600 text-sm mt-2">Diagrams and warnings would appear here.</p>
-                 </div>
-                 
-                 {/* Highlight Box (Simulating AI detection on PDF) */}
-                 <div className="absolute top-1/4 left-1/4 w-1/2 h-1/2 border-4 border-indigo-500/30 bg-indigo-500/5 rounded animate-pulse" />
-              </div>
+           {/* PDF IFRAME CONTAINER */}
+           <div className="flex-1 bg-zinc-900 relative">
+              <iframe 
+                /* 4. FIX: Add key prop to force re-render when page changes.
+                   This solves your previous issue where the PDF wouldn't update.
+                */
+                key={activeStepData.pdfPage} 
+                src={`/sample.pdf#page=${activeStepData.pdfPage}`}
+                className="w-full h-full border-0"
+                title="Instruction Manual PDF"
+              />
            </div>
         </div>
 
-
-        {/* RIGHT PANEL: 3D SCENE + SUBTITLES (50%) */}
-        <div className="w-1/2 bg-black relative">
+        {/* RIGHT PANEL: DYNAMIC 3D SCENE */}
+        <div className="w-full md:w-1/2 bg-black relative h-1/2 md:h-full">
           
-          {/* The 3D Canvas */}
-          <div className="absolute inset-0">
-            <AssemblyScene currentStep={currentStep} />
+          <div className="absolute inset-0 z-0">
+            <AssemblyScene modelUrl={activeStepData.modelUrl} />
           </div>
 
-          {/* --- OVERLAY: SUBTITLES (Only shows when isPlaying is true) --- */}
+          {/* SUBTITLES */}
           {isPlaying && (
             <div className="absolute bottom-32 left-8 right-8 z-20 flex justify-center pointer-events-none">
-               <div className="bg-black/70 backdrop-blur-md border border-white/10 p-6 rounded-2xl shadow-2xl max-w-xl animate-in fade-in slide-in-from-bottom-4 duration-500">
+               <div className="bg-black/70 backdrop-blur-md border border-white/10 p-4 md:p-6 rounded-2xl shadow-2xl max-w-xl animate-in fade-in slide-in-from-bottom-4 duration-500 pointer-events-auto">
                   <div className="flex items-center gap-3 mb-2">
                      <Volume2 className="w-4 h-4 text-indigo-400 animate-pulse" />
                      <span className="text-xs font-bold text-indigo-300 uppercase tracking-wider">Voice Guide</span>
                   </div>
-                  <p className="text-lg font-medium text-white leading-relaxed text-center">
+                  <p className="text-base md:text-lg font-medium text-white leading-relaxed text-center">
                     "{activeStepData.voiceGuidance}"
                   </p>
                </div>
             </div>
           )}
 
-          {/* FLOATING CONTROLS */}
+          {/* CONTROLS */}
           <div className="absolute bottom-8 left-1/2 -translate-x-1/2 flex items-center gap-4 bg-zinc-900/90 backdrop-blur-md p-2 rounded-2xl shadow-2xl border border-white/10 z-30">
              <button 
                onClick={() => setCurrentStep(Math.max(1, currentStep - 1))}
@@ -123,14 +222,10 @@ export default function Workspace() {
                <ArrowLeft className="w-6 h-6" />
              </button>
 
-             <div className="h-8 w-[1px] bg-white/10 mx-2"></div>
-
-             <div className="flex flex-col items-center px-2">
+             <div className="flex flex-col items-center px-4">
                <span className="text-xs font-semibold text-zinc-500 uppercase tracking-wider">Step</span>
                <span className="text-xl font-bold text-white tabular-nums leading-none">{currentStep}</span>
              </div>
-
-             <div className="h-8 w-[1px] bg-white/10 mx-2"></div>
 
              <button 
                onClick={() => setCurrentStep(Math.min(totalSteps, currentStep + 1))}
@@ -141,12 +236,10 @@ export default function Workspace() {
              </button>
           </div>
 
-          {/* Top Right Tools */}
           <div className="absolute top-6 right-6 flex gap-2 z-30">
              <button 
-               onClick={() => setIsPlaying(true)} // Replay button
+               onClick={() => setIsPlaying(true)}
                className="p-2 bg-black/50 backdrop-blur hover:bg-indigo-600 rounded-lg border border-white/10 text-zinc-300 hover:text-white transition-all"
-               title="Replay Instruction"
              >
                <PlayCircle className="w-5 h-5" />
              </button>
