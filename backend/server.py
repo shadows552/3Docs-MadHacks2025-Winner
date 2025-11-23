@@ -26,7 +26,8 @@ from database import (
     get_all_pdfs,
     get_pdf_filename_by_hash,
     get_file_info_by_hash_step,
-    get_step_position
+    get_step_position,
+    con
 )
 from tts import tts
 from tripo import image_to_model
@@ -379,6 +380,10 @@ async def upload_and_process(
     1. Saves the uploaded file to the volume directory
     2. Triggers the processing pipeline
     3. Returns processing results
+
+    Special handling for demo.pdf:
+    - If demo.pdf already exists in cache, returns cached data without calling external APIs
+    - This provides instant results for demo purposes
     """
     try:
         # Validate file type
@@ -398,7 +403,37 @@ async def upload_and_process(
 
         print(f"Uploaded file saved: {file.filename} ({len(content)} bytes)")
 
-        # Process the uploaded file
+        # Special handling for demo.pdf - check if it's already cached
+        if file.filename.lower() == 'demo.pdf':
+            # Calculate hash to check if it exists in database
+            pdf_hash = calculate_pdf_hash(str(file_path))
+            hash_hex = pdf_hash.hex()[:16]
+
+            # Check if this PDF already exists in the database
+            cursor = con.execute(
+                'SELECT COUNT(*) FROM instructions WHERE hash = ?',
+                (pdf_hash,)
+            )
+            existing_count = cursor.fetchone()[0]
+
+            if existing_count > 0:
+                print(f"\n{'='*60}")
+                print(f"demo.pdf found in cache! Returning cached results.")
+                print(f"Skipping Gemini, TTS, and 3D model generation.")
+                print(f"PDF Hash: {hash_hex}")
+                print(f"{'='*60}\n")
+
+                # Return cached data without calling any external APIs
+                return ProcessResponse(
+                    success=True,
+                    message=f"Successfully loaded {file.filename} from cache (no API calls made)",
+                    pdf_hash=hash_hex,
+                    steps_processed=existing_count,
+                    tts_files_generated=existing_count if generate_tts else None,
+                    models_generated=existing_count if generate_3d else None
+                )
+
+        # Process the uploaded file normally (for non-demo PDFs or first-time demo.pdf)
         result = await process_pdf_pipeline(
             pdf_filename=file.filename,
             generate_tts=generate_tts,

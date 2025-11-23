@@ -230,6 +230,7 @@ def get_instructions_with_images(pdf_hash_bytes: bytes) -> list:
 def get_all_pdfs() -> list:
     """
     Get all unique PDFs in the database.
+    Filters out demo.pdf from the results.
 
     Returns:
         List of tuples (hash_hex, pdf_filename, step_count)
@@ -244,6 +245,9 @@ def get_all_pdfs() -> list:
     results = []
     for row in cursor.fetchall():
         hash_bytes, pdf_filename, step_count = row
+        # Skip demo.pdf from listings
+        if pdf_filename.lower() == 'demo.pdf':
+            continue
         hash_hex = hash_bytes.hex()[:16]
         results.append((hash_hex, pdf_filename, step_count))
 
