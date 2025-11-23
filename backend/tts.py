@@ -3,8 +3,7 @@ import os
 
 API_URL = "https://api.fish.audio/v1/tts"
 
-
-async def tts(text, pdf_hash_hex, step_number, output_dir="volume", voice_id="zh_CN-female-1"):
+async def tts(text, pdf_hash_hex, step_number, output_dir="volume", voice_id="5ac6fb7171ba419190700620738209d8"):
     api_key = os.getenv("FISH_AUDIO_API_KEY")
     if not api_key:
         raise ValueError("FISH_AUDIO_API_KEY environment variable is not set")
@@ -15,8 +14,8 @@ async def tts(text, pdf_hash_hex, step_number, output_dir="volume", voice_id="zh
 
     payload = {
         "text": text,
-        "model": "fish-speech-1",
-        "voice": voice_id,
+        "model": "s1",
+        "reference_id": voice_id,
         "format": "mp3"
     }
 
@@ -43,7 +42,6 @@ async def tts(text, pdf_hash_hex, step_number, output_dir="volume", voice_id="zh
 
     print(f"Audio saved to {output_file}")
     return output_filename
-
 
 async def tts_from_file(input_text_file, pdf_hash_hex, step_number, output_dir="volume", voice_id="zh_CN-female-1"):
     with open(input_text_file, "r", encoding="utf-8") as f:

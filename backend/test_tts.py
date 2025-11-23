@@ -1,14 +1,15 @@
 from tts import tts
+import asyncio
 
-def test_basic():
+async def test_basic():
     print("Running basic TTS test...")
 
     try:
-        output_file = tts("This is a test message.", voice_id="en_US-female-1", output_file="test_output.wav")
+        output_file = await tts("Hello, world!", "test_hash", 1, output_dir="volume", voice_id="60bd8f0f5bbc462a8fa1686dd81af336")
         print("TTS generated successfully:", output_file)
     except Exception as e:
         print("❌ Test failed:", e)
 
 
 if __name__ == "__main__":
-    test_basic()
+    asyncio.run(test_basic())
