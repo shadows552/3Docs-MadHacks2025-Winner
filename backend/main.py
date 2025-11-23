@@ -38,8 +38,7 @@ if __name__ == "__main__":
 
     # Generate TTS audio files
     volume_dir = Path("volume")
-
-    # Get all instructions for this PDF hash
+    hash_hex = pdf_hash.hex()[:16]  # Use first 16 chars of hash
     rows = get_instructions_by_hash(pdf_hash)
 
     print(f"\nGenerating TTS for {len(rows)} instructions...")
@@ -56,14 +55,9 @@ if __name__ == "__main__":
 
         title, description = parts
 
-        # Generate MP3 filename based on instruction filename
-        instruction_stem = Path(instruction_filename).stem
-        mp3_filename = f"{instruction_stem}.mp3"
-        mp3_path = volume_dir / mp3_filename
-
-        # Generate TTS for the description
+        # Generate TTS - the function returns the output filename
         try:
-            tts(description, output_file=str(mp3_path))
+            mp3_filename = tts(description, hash_hex, step)
 
             # Update database with MP3 filename
             update_mp3_filename(pdf_hash, step, mp3_filename)

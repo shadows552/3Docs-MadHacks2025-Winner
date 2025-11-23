@@ -72,6 +72,7 @@ def store_gemini_results(
     # Filter only instructional images and store with sequential step numbers
     step_number = 0
     volume_dir = Path("volume")
+    hash_hex = pdf_hash_bytes.hex()[:16]  # Use first 16 chars of hash
 
     for match in gemini_results.get("matches", []):
         if not match.get("is_instruction"):
@@ -81,12 +82,24 @@ def store_gemini_results(
         description = match["instruction_description"]
 
         image_index = match["image_index"]
-        image_filename = image_filenames[image_index]
+        old_image_filename = image_filenames[image_index]
+
+        # Get original image extension
+        image_ext = Path(old_image_filename).suffix
+
+        # Create new filenames using hash-step pattern
+        new_image_filename = f"{hash_hex}-{step_number}{image_ext}"
+        instruction_filename = f"{hash_hex}-{step_number}.txt"
+
+        # Copy/rename image file to new naming scheme
+        old_image_path = volume_dir / old_image_filename
+        new_image_path = volume_dir / new_image_filename
+
+        if old_image_path.exists():
+            import shutil
+            shutil.copy2(old_image_path, new_image_path)
 
         # Create instruction file for this step (title\n\ndescription)
-        # Extract base name from image filename to create instruction filename
-        image_stem = Path(image_filename).stem
-        instruction_filename = f"{image_stem}_instruction.txt"
         instruction_path = volume_dir / instruction_filename
 
         with open(instruction_path, "w", encoding="utf-8") as f:
@@ -107,7 +120,7 @@ def store_gemini_results(
             pdf_hash_bytes,
             pdf_filename,
             step_number,
-            image_filename,
+            new_image_filename,
             None,  # glb added later
             None,  # mp3 added later
             instruction_filename

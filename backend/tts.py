@@ -1,27 +1,17 @@
 import requests
-import hashlib
 import os
 
 API_URL = "https://api.fish.audio/v1/tts"
 
 
-def compute_pdf_hash(pdf_path):
-    """Return a short SHA1 hash based on the PDF content."""
-    sha1 = hashlib.sha1()
-    with open(pdf_path, "rb") as f:
-        sha1.update(f.read())
-
-    return sha1.hexdigest()[:12]  # shorten for readability
-
-
-def tts(text, pdf_path, step_number, voice_id="zh_CN-female-1"):
+def tts(text, pdf_hash_hex, step_number, output_dir="volume", voice_id="zh_CN-female-1"):
     api_key = os.getenv("FISH_AUDIO_API_KEY")
     if not api_key:
         raise ValueError("FISH_AUDIO_API_KEY environment variable is not set")
 
-    # 🔥 output format: <hash>-<step>.mp3
-    file_hash = compute_pdf_hash(pdf_path)
-    output_file = f"{file_hash}-{step_number}.mp3"
+    # output format: <hash>-<step>.mp3
+    output_filename = f"{pdf_hash_hex}-{step_number}.mp3"
+    output_file = f"{output_dir}/{output_filename}"
 
     payload = {
         "text": text,
@@ -50,11 +40,11 @@ def tts(text, pdf_path, step_number, voice_id="zh_CN-female-1"):
         f.write(response.content)
 
     print(f"Audio saved to {output_file}")
-    return output_file
+    return output_filename
 
 
-def tts_from_file(input_text_file, pdf_path, step_number, voice_id="zh_CN-female-1"):
+def tts_from_file(input_text_file, pdf_hash_hex, step_number, output_dir="volume", voice_id="zh_CN-female-1"):
     with open(input_text_file, "r", encoding="utf-8") as f:
         text = f.read().strip()
 
-    return tts(text, pdf_path, step_number, voice_id)
+    return tts(text, pdf_hash_hex, step_number, output_dir, voice_id)
