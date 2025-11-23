@@ -18,6 +18,7 @@ cp backend/.env.example backend/.env
 Edit `backend/.env` and add your API keys:
 - `GEMINI_API_KEY`: Get from Google AI Studio
 - `TRIPO_API_KEY`: Get from Tripo3D Platform
+- `FISH_API_KEY`: Get from Fish Audio
 
 3. **Build and run with Docker Compose**
 ```bash
