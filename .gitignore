@@ -6,10 +6,7 @@ backend/venv/
 backend/.venv/
 .env
 backend/.env
-backend/secret.py
 /.tmp/
 output/*
-backend/volume/*.jpeg
-backend/volume/*.db
 .idea/
 frontend/package-lock.json

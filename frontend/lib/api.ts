@@ -155,19 +155,11 @@ export async function fetchInstructionData(hash: string, step: number): Promise<
  */
 export interface StepPosition {
   page_number: number;
-  y_coordinate: number;
-  bbox: {
-    x0: number;
-    y0: number;
-    x1: number;
-    y1: number;
-    width: number;
-    height: number;
-  };
+  y_percentage: number;  // Percentage (0-100%) from top of page
 }
 
 /**
- * Fetch step position data (page number and Y-coordinate)
+ * Fetch step position data (page number and Y-percentage)
  */
 export async function fetchStepPosition(hash: string, step: number): Promise<StepPosition | null> {
   try {
@@ -178,8 +170,7 @@ export async function fetchStepPosition(hash: string, step: number): Promise<Ste
     const data = await response.json();
     return {
       page_number: data.page_number,
-      y_coordinate: data.y_coordinate,
-      bbox: data.bbox
+      y_percentage: data.y_percentage
     };
   } catch (error) {
     console.error(`Failed to fetch position for step ${step}:`, error);

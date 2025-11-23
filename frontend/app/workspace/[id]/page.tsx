@@ -73,8 +73,6 @@ const fetchManualData = async (hash: string): Promise<ManualData> => {
       fetchStepPosition(hash, stepNum)
     ]);
 
-    console.log(`Step ${stepNum} position data:`, position);
-
     return {
       stepNumber: stepNum,
       title: instructionData.title,
@@ -88,11 +86,6 @@ const fetchManualData = async (hash: string): Promise<ManualData> => {
 
   const steps = await Promise.all(stepDataPromises);
 
-  console.log('All steps with position data:', steps.map(s => ({
-    step: s.stepNumber,
-    hasPosition: !!s.position,
-    position: s.position
-  })));
 
   return {
     productName: pdfInfo.pdf_filename.replace('.pdf', ''),
@@ -223,7 +216,7 @@ export default function Workspace({ params }: WorkspaceProps) {
       if (!pdfContainerRef.current) return;
 
       // Get rendered page dimensions
-    const pageTop = pageElement.offsetTop;
+      const pageTop = pageElement.offsetTop;
       const renderedPageHeight = pageElement.offsetHeight;
 
       // Convert percentage to actual coordinate based on rendered page height
@@ -249,44 +242,16 @@ export default function Workspace({ params }: WorkspaceProps) {
         currentScrollTop: pdfContainerRef.current.scrollTop
       });
 
-    // Smooth scroll to position
-    pdfContainerRef.current.scrollTo({
-      top: targetScrollTop,
-      behavior: 'smooth'
-    });
+      // Smooth scroll to position
+      pdfContainerRef.current.scrollTo({
+        top: targetScrollTop,
+        behavior: 'smooth'
+      });
     };
 
     performScroll();
   }, [currentStep, activeStepData, pdfWidth]);
 
-  // --- RESIZE HANDLERS ---
-  const handleMouseDown = () => {
-    setIsResizing(true);
-  };
-
-  useEffect(() => {
-    const handleMouseMove = (e: MouseEvent) => {
-      if (!isResizing) return;
-      const newWidth = (e.clientX / window.innerWidth) * 100;
-      if (newWidth > 20 && newWidth < 80) {
-        setLeftPanelWidth(newWidth);
-      }
-    };
-
-    const handleMouseUp = () => {
-      setIsResizing(false);
-    };
-
-    if (isResizing) {
-      document.addEventListener('mousemove', handleMouseMove);
-      document.addEventListener('mouseup', handleMouseUp);
-    }
-
-    return () => {
-      document.removeEventListener('mousemove', handleMouseMove);
-      document.removeEventListener('mouseup', handleMouseUp);
-    };
-  }, [isResizing]);
 
   if (loading) {
     return (
@@ -445,15 +410,6 @@ export default function Workspace({ params }: WorkspaceProps) {
              </button>
           </div>
 
-        </div>
-
-        {/* RESIZABLE DIVIDER */}
-        <div
-          className="hidden md:block w-1 bg-zinc-700 hover:bg-indigo-500 cursor-col-resize transition-colors relative z-40"
-          onMouseDown={handleMouseDown}
-          style={{ cursor: isResizing ? 'col-resize' : 'col-resize' }}
-        >
-          <div className="absolute inset-y-0 -left-1 -right-1" />
         </div>
       </div>
     </div>
