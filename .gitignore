@@ -11,5 +11,6 @@ backend/secret.py
 output/*
 backend/volume/*.jpeg
 backend/volume/*.db
+backend/volume/*.txt
 .idea/
 frontend/package-lock.json
