@@ -1,0 +1,3 @@
+Removing the 3.5-inch hard drive
+
+Disconnect the power and data cables from the hard drive. Release the blue securing tab on the side and lift the hard drive caddy out of the chassis.

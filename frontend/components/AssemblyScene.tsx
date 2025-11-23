@@ -73,7 +73,7 @@ export default function AssemblyScene({ modelUrl }: AssemblySceneProps) {
             This allows React to handle the environment loading independently
             of the Stage's internal render logic.
           */}
-          <Environment preset="forest" />
+          <Environment preset="studio" />
         </Suspense>
 
         <OrbitControls makeDefault />
