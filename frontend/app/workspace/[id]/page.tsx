@@ -1,6 +1,6 @@
 "use client";
 // 1. Add 'use' to imports
-import React, { useState, useEffect, use } from 'react';
+import React, { useState, useEffect, use, useRef } from 'react';
 import Link from 'next/link';
 import { 
   ArrowLeft, 
@@ -88,9 +88,12 @@ export default function Workspace({ params }: WorkspaceProps) {
   const [manualData, setManualData] = useState<ManualData | null>(null);
   const [loading, setLoading] = useState<boolean>(true);
   const [error, setError] = useState<string | null>(null);
-  
+
   const [currentStep, setCurrentStep] = useState<number>(1);
   const [isPlaying, setIsPlaying] = useState<boolean>(false);
+  const [leftPanelWidth, setLeftPanelWidth] = useState<number>(66.66); // 2/3 in percentage
+  const [isResizing, setIsResizing] = useState<boolean>(false);
+  const pdfIframeRef = useRef<HTMLIFrameElement>(null);
 
   // --- FETCH DATA ---
   useEffect(() => {
@@ -120,6 +123,52 @@ export default function Workspace({ params }: WorkspaceProps) {
     const timer = setTimeout(() => setIsPlaying(false), 4000);
     return () => clearTimeout(timer);
   }, [currentStep, activeStepData]);
+
+  // --- PDF NAVIGATION ---
+  useEffect(() => {
+    if (!activeStepData || !pdfIframeRef.current) return;
+
+    // Navigate to the page without reloading the iframe
+    const iframe = pdfIframeRef.current;
+    try {
+      // Try to navigate within the same PDF
+      if (iframe.contentWindow) {
+        iframe.contentWindow.location.hash = `page=${activeStepData.pdfPage}`;
+      }
+    } catch (error) {
+      // Fallback: if we can't access contentWindow due to cross-origin, reload
+      console.warn('Unable to navigate PDF without reload:', error);
+    }
+  }, [activeStepData]);
+
+  // --- RESIZE HANDLERS ---
+  const handleMouseDown = () => {
+    setIsResizing(true);
+  };
+
+  useEffect(() => {
+    const handleMouseMove = (e: MouseEvent) => {
+      if (!isResizing) return;
+      const newWidth = (e.clientX / window.innerWidth) * 100;
+      if (newWidth > 20 && newWidth < 80) {
+        setLeftPanelWidth(newWidth);
+      }
+    };
+
+    const handleMouseUp = () => {
+      setIsResizing(false);
+    };
+
+    if (isResizing) {
+      document.addEventListener('mousemove', handleMouseMove);
+      document.addEventListener('mouseup', handleMouseUp);
+    }
+
+    return () => {
+      document.removeEventListener('mousemove', handleMouseMove);
+      document.removeEventListener('mouseup', handleMouseUp);
+    };
+  }, [isResizing]);
 
   if (loading) {
     return (
@@ -162,10 +211,13 @@ export default function Workspace({ params }: WorkspaceProps) {
       </header>
 
       {/* MAIN SPLIT VIEW */}
-      <div className="flex-1 flex flex-col md:flex-row overflow-hidden">
+      <div className="flex-1 flex flex-col md:flex-row overflow-hidden relative">
 
         {/* LEFT PANEL: DYNAMIC 3D SCENE */}
-        <div className="w-full md:w-2/3 bg-black relative h-1/2 md:h-full">
+        <div
+          className="bg-black relative h-1/2 md:h-full"
+          style={{ width: `${leftPanelWidth}%` }}
+        >
           
           <div className="absolute inset-0 z-0">
             <AssemblyScene modelUrl={activeStepData.modelUrl} />
@@ -173,8 +225,8 @@ export default function Workspace({ params }: WorkspaceProps) {
 
           {/* SUBTITLES */}
           {isPlaying && (
-            <div className="absolute bottom-32 left-8 right-8 z-20 flex justify-center pointer-events-none">
-               <div className="bg-black/70 backdrop-blur-md border border-white/10 p-4 md:p-6 rounded-2xl shadow-2xl max-w-xl animate-in fade-in slide-in-from-bottom-4 duration-500 pointer-events-auto">
+            <div className="absolute bottom-20 left-8 right-8 z-20 flex justify-center pointer-events-none">
+               <div className="bg-black/40 backdrop-blur-md border border-white/10 p-4 md:p-6 rounded-2xl shadow-2xl max-w-xl animate-in fade-in slide-in-from-bottom-4 duration-500 pointer-events-auto">
                   <div className="flex items-center gap-3 mb-2">
                      <Volume2 className="w-4 h-4 text-indigo-400 animate-pulse" />
                      <span className="text-xs font-bold text-indigo-300 uppercase tracking-wider">Voice Guide</span>
@@ -221,8 +273,20 @@ export default function Workspace({ params }: WorkspaceProps) {
 
         </div>
 
+        {/* RESIZABLE DIVIDER */}
+        <div
+          className="hidden md:block w-1 bg-zinc-700 hover:bg-indigo-500 cursor-col-resize transition-colors relative z-40"
+          onMouseDown={handleMouseDown}
+          style={{ cursor: isResizing ? 'col-resize' : 'col-resize' }}
+        >
+          <div className="absolute inset-y-0 -left-1 -right-1" />
+        </div>
+
         {/* RIGHT PANEL: REAL PDF VIEWER */}
-        <div className="w-full md:w-1/3 bg-zinc-800 border-b md:border-b-0 md:border-l border-zinc-700 relative flex flex-col h-1/2 md:h-full">
+        <div
+          className="bg-zinc-800 border-b md:border-b-0 border-zinc-700 relative flex flex-col h-1/2 md:h-full"
+          style={{ width: `${100 - leftPanelWidth}%` }}
+        >
            <div className="h-12 border-b border-zinc-700 flex items-center justify-between px-4 bg-zinc-800/50 backdrop-blur shrink-0">
               <span className="text-xs font-medium text-zinc-400 flex items-center gap-2">
                 <FileText className="w-4 h-4" />
@@ -236,8 +300,8 @@ export default function Workspace({ params }: WorkspaceProps) {
            {/* PDF IFRAME CONTAINER */}
            <div className="flex-1 bg-zinc-900 relative">
               <iframe
-                key={activeStepData.pdfPage}
-                src={`/sample.pdf#page=${activeStepData.pdfPage}`}
+                ref={pdfIframeRef}
+                src="/sample.pdf#page=1"
                 className="w-full h-full border-0"
                 title="Instruction Manual PDF"
               />

@@ -36,7 +36,7 @@ function CameraHandler({ url }: CameraHandlerProps) {
   const { camera, controls } = useThree();
   useEffect(() => {
     // Reset camera position to front-on view when model changes
-    camera.position.set(0, 1, 5);
+    camera.position.set(0, 1, 8);
     camera.lookAt(0, 0, 0);
 
     // Reset controls target if OrbitControls are being used
@@ -56,7 +56,7 @@ interface AssemblySceneProps {
 export default function AssemblyScene({ modelUrl }: AssemblySceneProps) {
   return (
     <div className="w-full h-full bg-zinc-900">
-      <Canvas shadows dpr={[1, 2]} camera={{ position: [0, 1, 5], fov: 50 }}>
+      <Canvas shadows dpr={[1, 2]} camera={{ position: [0, 1, 8], fov: 50 }}>
         
         <Suspense fallback={<Loader />}>
           {/* 2. FIX: Remove 'environment="forest"' from Stage.
