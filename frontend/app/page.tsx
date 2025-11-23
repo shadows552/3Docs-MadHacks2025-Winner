@@ -70,7 +70,10 @@ export default function Dashboard() {
         {/* 2. HERO SECTION: Value Prop */}
         <div className="mb-12">
           <h1 className="text-3xl md:text-4xl font-bold text-zinc-900 mb-3 tracking-tight">
-            Turn static PDFs into <span className="text-transparent bg-clip-text bg-gradient-to-r from-indigo-600 to-violet-600">interactive 3D guides</span>.
+            Turn static PDFs into <span 
+              className="text-transparent bg-clip-text bg-gradient-to-r from-indigo-600 to-violet-600 selection:text-indigo-700">
+              interactive 3D guides
+            </span>.
           </h1>
           <p className="text-lg text-zinc-500 max-w-2xl">
             Upload your assembly manuals. Our AI parses instructions, generates 3D models, and creates voice-guided walkthroughs instantly.

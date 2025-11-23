@@ -55,10 +55,6 @@ export default function Workspace() {
             <span className="font-semibold text-zinc-100">{MANUAL_DATA.productName}</span>
           </nav>
         </div>
-        <div className="flex items-center gap-3">
-           <span className="text-xs font-mono text-zinc-500 uppercase tracking-wider">Auto-Save On</span>
-           <div className="w-8 h-8 bg-indigo-600 rounded-full flex items-center justify-center text-white font-bold text-xs">JD</div>
-        </div>
       </header>
 
       {/* 2. MAIN SPLIT VIEW */}
@@ -95,7 +91,7 @@ export default function Workspace() {
 
 
         {/* RIGHT PANEL: 3D SCENE + SUBTITLES (50%) */}
-        <div className="flex-1 bg-zinc-100 relative">
+        <div className="w-1/2 bg-black relative">
           
           {/* The 3D Canvas */}
           <div className="absolute inset-0">
